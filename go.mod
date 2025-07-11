@@ -7,8 +7,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.70
 	github.com/aws/aws-sdk-go-v2/service/eks v1.66.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0
-	github.com/conductorone/baton-kubernetes v0.0.1
-	github.com/conductorone/baton-sdk v0.3.16
+	github.com/conductorone/baton-kubernetes v0.0.2
+	github.com/conductorone/baton-sdk v0.3.18
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
