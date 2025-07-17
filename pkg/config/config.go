@@ -17,26 +17,33 @@ var (
 	AccessKeyIdField = field.StringField(
 		accessKey,
 		field.WithRequired(true),
-		field.WithDescription("The access-key-id for the aws account"),
+		field.WithDescription("The access-key-id for the aws user"),
+		field.WithDisplayName("Access key"),
 	)
 	SecretAccessKeyField = field.StringField(
 		accessSecret,
 		field.WithRequired(true),
-		field.WithDescription("The secret-access-key for the aws account"),
+		field.WithDescription("The secret-access-key for the aws user"),
+		field.WithDisplayName("Secret access key"),
+		field.WithIsSecret(true),
 	)
 	RegionField = field.StringField(
 		region,
 		field.WithRequired(true),
 		field.WithDescription("The region for the aws account"),
+		field.WithDisplayName("Region"),
 	)
 	AssumeRoleArnField = field.StringField(
 		assumeRoleArn,
-		field.WithDescription("The ARN of the role to assume for the connector."),
+		field.WithDescription("The ARN of the role to assume for the connector"),
+		field.WithRequired(true),
+		field.WithDisplayName("Assume role ARN"),
 	)
 	ClusterNameField = field.StringField(
 		clusterName,
 		field.WithRequired(true),
-		field.WithDescription("The name of the EKS cluster to connect to."),
+		field.WithDescription("The name of the EKS cluster to connect to"),
+		field.WithDisplayName("Cluster name"),
 	)
 
 	ConfigurationFields = []field.SchemaField{

@@ -14,17 +14,19 @@ func TestValidateConfig(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:   "valid config",
+			name: "valid config",
 			config: &Eks{
-				// TODO: Add minimal valid configuration here once Config type is generated
+				EksAccessKey:       "MYACCESSKEY01",
+				EksSecretAccessKey: "secretacesskey010203",
+				EksRegion:          "us-east-1",
+				EksAssumeRoleArn:   "arn:aws:iam::1234567891012:role/MyRole",
+				EksClusterName:     "my-cluster",
 			},
 			wantErr: false,
 		},
 		{
-			name:   "invalid config - missing required fields",
-			config: &Eks{
-				// TODO: Add configuration with missing required fields once Config type is generated
-			},
+			name:    "invalid config - missing required fields",
+			config:  &Eks{},
 			wantErr: true,
 		},
 	}

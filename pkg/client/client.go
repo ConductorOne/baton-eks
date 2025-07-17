@@ -30,7 +30,9 @@ func NewClient(cfg *rest.Config) (*EKSClient, error) {
 		return nil, fmt.Errorf("creating kubernetes client: %w", err)
 	}
 	return &EKSClient{
-		kubernetes: client,
+		kubernetes:     client,
+		cacheUsersMap:  make(map[string][]string),
+		cacheGroupsMap: make(map[string][]string),
 	}, nil
 }
 
@@ -48,14 +50,17 @@ func (c *EKSClient) LoadIdentityCacheMaps(ctx context.Context) error {
 		return nil
 	}
 
+	clear(c.cacheUsersMap)
+	clear(c.cacheGroupsMap)
+
 	// Fetch and parse aws-auth ConfigMap
 	userMap, groupMap, err := c.getAwsAuthMappings(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get aws-auth mappings: %w", err)
 	}
 
-	c.cacheUsersMap = *userMap
-	c.cacheGroupsMap = *groupMap
+	c.cacheUsersMap = userMap
+	c.cacheGroupsMap = groupMap
 	c.idCacheExpiry = now.Add(cacheTTL)
 	return nil
 }
@@ -76,23 +81,8 @@ func (c *EKSClient) LookupArnsByGroup(ctx context.Context, group string) ([]stri
 	return c.cacheGroupsMap[group], nil
 }
 
-// Expose the full user/group maps if needed.
-func (c *EKSClient) GetUserMap(ctx context.Context) (map[string][]string, error) {
-	if err := c.LoadIdentityCacheMaps(ctx); err != nil {
-		return nil, err
-	}
-	return c.cacheUsersMap, nil
-}
-
-func (c *EKSClient) GetGroupMap(ctx context.Context) (map[string][]string, error) {
-	if err := c.LoadIdentityCacheMaps(ctx); err != nil {
-		return nil, err
-	}
-	return c.cacheGroupsMap, nil
-}
-
 // Fetch and parse aws-auth ConfigMap.
-func (c *EKSClient) getAwsAuthMappings(ctx context.Context) (*map[string][]string, *map[string][]string, error) {
+func (c *EKSClient) getAwsAuthMappings(ctx context.Context) (map[string][]string, map[string][]string, error) {
 	cm, err := c.kubernetes.CoreV1().ConfigMaps("kube-system").Get(ctx, "aws-auth", metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get aws-auth configmap: %w", err)
@@ -120,5 +110,5 @@ func (c *EKSClient) getAwsAuthMappings(ctx context.Context) (*map[string][]strin
 			}
 		}
 	}
-	return &userMap, &groupMap, nil
+	return userMap, groupMap, nil
 }
