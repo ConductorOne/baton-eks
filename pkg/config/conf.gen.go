@@ -4,7 +4,11 @@ package config
 import "reflect" 
 
 type Eks struct {
-	Configfield string `mapstructure:"configField"`
+	EksAccessKey string `mapstructure:"eks-access-key"`
+	EksSecretAccessKey string `mapstructure:"eks-secret-access-key"`
+	EksRegion string `mapstructure:"eks-region"`
+	EksAssumeRoleArn string `mapstructure:"eks-assume-role-arn"`
+	EksClusterName string `mapstructure:"eks-cluster-name"`
 }
 
 func (c* Eks) findFieldByTag(tagValue string) (any, bool) {
