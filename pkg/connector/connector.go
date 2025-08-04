@@ -15,12 +15,36 @@ import (
 )
 
 type Connector struct {
-	k8s *k8s.Kubernetes
+	k8s       *k8s.Kubernetes
+	eksClient *client.EKSClient
 }
+
+var (
+	ResourceTypeAccessPolicy = &v2.ResourceType{
+		Id:          "access_policy",
+		DisplayName: "Access Policy",
+		Description: "EKS Access Policy that can be assigned to IAM users/roles",
+		Traits:      []v2.ResourceType_Trait{v2.ResourceType_TRAIT_ROLE},
+	}
+	ResourceTypeIAMUser = &v2.ResourceType{
+		Id:          "iam_user",
+		DisplayName: "IAM User",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_USER,
+		},
+	}
+	ResourceTypeIAMRole = &v2.ResourceType{
+		Id:          "role",
+		DisplayName: "IAM Role",
+		Traits:      []v2.ResourceType_Trait{v2.ResourceType_TRAIT_ROLE},
+	}
+)
 
 // ResourceSyncers returns a ResourceSyncer for each resource type that should be synced from the upstream service.
 func (d *Connector) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
-	return d.k8s.ResourceSyncers(ctx)
+	syncers := d.k8s.ResourceSyncers(ctx)
+	syncers = append(syncers, NewAccessPolicyBuilder(d.eksClient))
+	return syncers
 }
 
 // Asset takes an input AssetRef and attempts to fetch it using the connector's authenticated http client
@@ -82,7 +106,7 @@ func New(
 		k8s.ResourceTypeServiceAccount.Id,
 	})
 
-	eksClient, err := client.NewClient(restConfig)
+	eksClient, err := client.NewClient(restConfig, awsCfg, clusterName)
 	if err != nil {
 		l.Error("error creating EKS client", zap.Error(err))
 		return nil, err
@@ -104,6 +128,7 @@ func New(
 		return nil, err
 	}
 	return &Connector{
-		k8s: cb,
+		k8s:       cb,
+		eksClient: eksClient,
 	}, nil
 }

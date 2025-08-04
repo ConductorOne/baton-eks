@@ -231,7 +231,7 @@ func (c *clusterRoleBuilder) Grants(ctx context.Context, resource *v2.Resource, 
 		for _, subject := range binding.Subjects {
 			entName := fmt.Sprintf("%s:%s", namespace, "member")
 			if subject.Kind == k8s.SubjectKindServiceAccount {
-				// This are Cluster's local service accounts, not AWS.
+				// These are Cluster's local service accounts, not AWS.
 				saName := fmt.Sprintf("%s/%s", subject.Namespace, subject.Name)
 				saResource := k8s.GenerateResourceForGrant(saName, k8s.ResourceTypeServiceAccount.Id)
 				g := grant.NewGrant(
@@ -241,7 +241,7 @@ func (c *clusterRoleBuilder) Grants(ctx context.Context, resource *v2.Resource, 
 				)
 				rv = append(rv, g)
 			}
-			if (subject.APIGroup == "rbac.authorization.k8s.io" || subject.APIGroup == "rbac.authorization.k8s.io/v1") &&
+			if (subject.APIGroup == k8s.RBACAPIGroup || subject.APIGroup == k8s.RBACAPIGroupV1) &&
 				!strings.Contains(subject.Name, "system:") {
 				var matchingUsers []string
 				switch subject.Kind {
