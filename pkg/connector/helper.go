@@ -27,9 +27,9 @@ func processGrants(matchingUsers []string, resource *v2.Resource, entID string) 
 	var rv []*v2.Grant
 	if len(matchingUsers) > 0 {
 		// Multiple users can be mapped to the same group.
-		var grantOpts []grant.GrantOption
 		for _, userARN := range matchingUsers {
-			userResource := k8s.GenerateResourceForGrant(userARN, k8s.ResourceTypeUser.Id)
+			var grantOpts []grant.GrantOption
+			userResource := k8s.GenerateResourceForGrant(userARN, ResourceTypeIAMUser.Id)
 			grantOpts = append(grantOpts, grant.WithAnnotation(&v2.ExternalResourceMatchID{
 				Id: userARN,
 			}))
