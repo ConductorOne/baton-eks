@@ -19,31 +19,13 @@ type Connector struct {
 	eksClient *client.EKSClient
 }
 
-var (
-	ResourceTypeAccessPolicy = &v2.ResourceType{
-		Id:          "access_policy",
-		DisplayName: "Access Policy",
-		Description: "EKS Access Policy that can be assigned to IAM users/roles",
-		Traits:      []v2.ResourceType_Trait{v2.ResourceType_TRAIT_ROLE},
-	}
-	ResourceTypeIAMUser = &v2.ResourceType{
-		Id:          "iam_user",
-		DisplayName: "IAM User",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_USER,
-		},
-	}
-	ResourceTypeIAMRole = &v2.ResourceType{
-		Id:          "role",
-		DisplayName: "IAM Role",
-		Traits:      []v2.ResourceType_Trait{v2.ResourceType_TRAIT_ROLE},
-	}
-)
-
 // ResourceSyncers returns a ResourceSyncer for each resource type that should be synced from the upstream service.
 func (d *Connector) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	syncers := d.k8s.ResourceSyncers(ctx)
-	syncers = append(syncers, NewAccessPolicyBuilder(d.eksClient))
+	syncers = append(syncers,
+		NewAccessPolicyBuilder(d.eksClient),
+		NewIAMRoleBuilder(d.eksClient),
+	)
 	return syncers
 }
 

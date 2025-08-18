@@ -19,7 +19,7 @@ func TestPolicyBuilder_ResourceType(t *testing.T) {
 	resourceType := builder.ResourceType(context.Background())
 	assert.Equal(t, "access_policy", resourceType.Id)
 	assert.Equal(t, "Access Policy", resourceType.DisplayName)
-	assert.Equal(t, "EKS Access Policy that can be assigned to IAM users/roles", resourceType.Description)
+	assert.Equal(t, "EKS Access Policy", resourceType.Description)
 }
 
 func TestPolicyBuilder_Entitlements(t *testing.T) {

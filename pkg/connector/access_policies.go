@@ -90,6 +90,7 @@ func (p *accessPolicyBuilder) Entitlements(ctx context.Context, resource *v2.Res
 			k8s.ResourceTypeServiceAccount,
 			k8s.ResourceTypeGroup,
 			ResourceTypeIAMUser,
+			ResourceTypeIAMRole,
 		),
 	)
 
@@ -122,26 +123,43 @@ func (p *accessPolicyBuilder) Grants(ctx context.Context, resource *v2.Resource,
 	for _, principalARN := range principalARNs {
 		resourceType := ResourceTypeIAMUser
 		grantOpts := []grant.GrantOption{}
+
 		// Create grant for this principal
 		if strings.Contains(principalARN, ":role/") {
-			// TODO: There is a limitation in the baton-sdk that we can not expand to other resources other than users or groups,
-			// since we need to make a grant to a role, this is not supported yet.
-			// Code reference: https://github.com/ConductorOne/baton-sdk/blob/main/pkg/sync/syncer.go#L2175
-			// TODO: Cannot grant to a role. This is a limitation of the baton-sdk and the AWS connector.
-			continue
-		}
-		principalResource := k8s.GenerateResourceForGrant(principalARN, resourceType.Id)
-		g := grant.NewGrant(
-			resource,
-			"assigned",
-			principalResource,
-			grantOpts...,
-		)
-		rv = append(rv, g)
+			resourceType = ResourceTypeIAMRole
+			principalResource := k8s.GenerateResourceForGrant(principalARN, ResourceTypeIAMRole.Id)
+			grantExpandable := &v2.GrantExpandable{
+				EntitlementIds: []string{
+					fmt.Sprintf("iam_role:%s:assumes", principalARN),
+				},
+			}
+			grantOpts = append(grantOpts, grant.WithAnnotation(grantExpandable))
+			g := grant.NewGrant(
+				resource,
+				"assigned",
+				principalResource,
+				grantOpts...,
+			)
+			rv = append(rv, g)
 
-		l.Debug("created policy grant",
-			zap.String("policy_arn", policyARN),
-			zap.String("principal_arn", principalARN))
+			l.Debug("created policy grant to role",
+				zap.String("policy_arn", policyARN),
+				zap.String("principal_arn", principalARN))
+		} else {
+			// Handle IAM user principals
+			principalResource := k8s.GenerateResourceForGrant(principalARN, resourceType.Id)
+			g := grant.NewGrant(
+				resource,
+				"assigned",
+				principalResource,
+				grantOpts...,
+			)
+			rv = append(rv, g)
+
+			l.Debug("created policy grant to user",
+				zap.String("policy_arn", policyARN),
+				zap.String("principal_arn", principalARN))
+		}
 	}
 
 	var nextPageToken string
