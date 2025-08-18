@@ -229,7 +229,7 @@ func (c *EKSClient) getAwsAuthMappings(ctx context.Context) (map[string][]string
 	return userMap, groupMap, nil
 }
 
-// ListIAMRoles lists IAM roles with pagination support
+// ListIAMRoles lists IAM roles with pagination support.
 func (c *EKSClient) ListIAMRoles(ctx context.Context, nextToken *string) ([]*IAMRole, *string, error) {
 	var roles []*IAMRole
 
@@ -257,7 +257,7 @@ func (c *EKSClient) ListIAMRoles(ctx context.Context, nextToken *string) ([]*IAM
 	return roles, page.Marker, nil
 }
 
-// GetIAMRole gets details for a specific IAM role
+// GetIAMRole gets details for a specific IAM role.
 func (c *EKSClient) GetIAMRole(ctx context.Context, roleName string) (*IAMRole, error) {
 	result, err := c.iamClient.GetRole(ctx, &iam.GetRoleInput{
 		RoleName: aws.String(roleName),
@@ -276,7 +276,7 @@ func (c *EKSClient) GetIAMRole(ctx context.Context, roleName string) (*IAMRole, 
 	}, nil
 }
 
-// GetIAMRoleTrustPolicy gets the trust policy for a specific IAM role
+// GetIAMRoleTrustPolicy gets the trust policy for a specific IAM role.
 func (c *EKSClient) GetIAMRoleTrustPolicy(ctx context.Context, roleName string) (string, error) {
 	result, err := c.iamClient.GetRole(ctx, &iam.GetRoleInput{
 		RoleName: aws.String(roleName),
@@ -292,13 +292,13 @@ func (c *EKSClient) GetIAMRoleTrustPolicy(ctx context.Context, roleName string) 
 	return *result.Role.AssumeRolePolicyDocument, nil
 }
 
-// TrustPolicy represents the structure of an IAM role trust policy
+// TrustPolicy represents the structure of an IAM role trust policy.
 type TrustPolicy struct {
 	Version   string      `json:"Version"`
 	Statement []Statement `json:"Statement"`
 }
 
-// Statement represents a statement in the trust policy
+// Statement represents a statement in the trust policy.
 type Statement struct {
 	Effect    string                 `json:"Effect"`
 	Principal map[string]interface{} `json:"Principal"`
@@ -306,7 +306,7 @@ type Statement struct {
 	Condition map[string]interface{} `json:"Condition,omitempty"`
 }
 
-// GetIAMRoleTrustPrincipals gets the principals that can assume a specific IAM role
+// GetIAMRoleTrustPrincipals gets the principals that can assume a specific IAM role.
 func (c *EKSClient) GetIAMRoleTrustPrincipals(ctx context.Context, roleName string) ([]string, error) {
 	trustPolicyJSON, err := c.GetIAMRoleTrustPolicy(ctx, roleName)
 	if err != nil {
@@ -342,7 +342,7 @@ func (c *EKSClient) GetIAMRoleTrustPrincipals(ctx context.Context, roleName stri
 	return principals, nil
 }
 
-// extractActions extracts actions from the Action field which can be a string or array
+// extractActions extracts actions from the Action field which can be a string or array.
 func (c *EKSClient) extractActions(action interface{}) []string {
 	var actions []string
 	switch v := action.(type) {
@@ -358,7 +358,7 @@ func (c *EKSClient) extractActions(action interface{}) []string {
 	return actions
 }
 
-// extractPrincipals extracts principal ARNs from the Principal field
+// extractPrincipals extracts principal ARNs from the Principal field.
 func (c *EKSClient) extractPrincipals(principal map[string]interface{}) []string {
 	var principals []string
 
@@ -370,7 +370,7 @@ func (c *EKSClient) extractPrincipals(principal map[string]interface{}) []string
 	return principals
 }
 
-// extractPrincipalValues extracts values from principal fields which can be string or array
+// extractPrincipalValues extracts values from principal fields which can be string or array.
 func (c *EKSClient) extractPrincipalValues(principal interface{}) []string {
 	var values []string
 	switch v := principal.(type) {

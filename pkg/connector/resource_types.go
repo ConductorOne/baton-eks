@@ -4,7 +4,7 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 )
 
-// EKS-specific resource types
+// EKS-specific resource types.
 var (
 	ResourceTypeIAMRole = &v2.ResourceType{
 		Id:          "iam_role",

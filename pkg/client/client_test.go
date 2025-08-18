@@ -12,6 +12,7 @@ import (
 )
 
 const testClusterName = "test-cluster"
+const actionStsAssumeRole = "sts:AssumeRole"
 
 func TestNewClient(t *testing.T) {
 	// Test creating a new EKS client
@@ -86,12 +87,12 @@ func TestExtractActions(t *testing.T) {
 	// Test string action
 	action := "sts:AssumeRole"
 	actions := c.extractActions(action)
-	if len(actions) != 1 || actions[0] != "sts:AssumeRole" {
+	if len(actions) != 1 || actions[0] != actionStsAssumeRole {
 		t.Errorf("Expected [sts:AssumeRole], got %v", actions)
 	}
 
 	// Test array of actions
-	actionArray := []interface{}{"sts:AssumeRole", "sts:GetCallerIdentity"}
+	actionArray := []interface{}{actionStsAssumeRole, "sts:GetCallerIdentity"}
 	actions = c.extractActions(actionArray)
 	if len(actions) != 2 {
 		t.Errorf("Expected 2 actions, got %d", len(actions))
@@ -145,8 +146,9 @@ func TestExtractPrincipals(t *testing.T) {
 
 func TestURLDecodeTrustPolicy(t *testing.T) {
 	// Test URL-encoded trust policy document
-	encodedPolicy := `%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22AWS%22%3A%22arn%3Aaws%3Aiam%3A%3A123456789012%3Auser%2Ftestuser%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D`
-
+	encodedPolicy := `%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B` +
+		`%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22AWS%22%3A%22arn%3Aaws%3A` +
+		`iam%3A%3A123456789012%3Auser%2Ftestuser%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D`
 	decodedPolicy, err := url.QueryUnescape(encodedPolicy)
 	if err != nil {
 		t.Fatalf("Failed to URL decode policy: %v", err)

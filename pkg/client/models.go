@@ -56,7 +56,7 @@ type EKSConfig struct {
 	CAData            []byte
 }
 
-// IAMRole represents an AWS IAM role
+// IAMRole represents an AWS IAM role.
 type IAMRole struct {
 	RoleName   string
 	RoleID     string

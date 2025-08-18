@@ -121,12 +121,10 @@ func (p *accessPolicyBuilder) Grants(ctx context.Context, resource *v2.Resource,
 
 	// Create grants for principals in this page
 	for _, principalARN := range principalARNs {
-		resourceType := ResourceTypeIAMUser
 		grantOpts := []grant.GrantOption{}
 
 		// Create grant for this principal
 		if strings.Contains(principalARN, ":role/") {
-			resourceType = ResourceTypeIAMRole
 			principalResource := k8s.GenerateResourceForGrant(principalARN, ResourceTypeIAMRole.Id)
 			grantExpandable := &v2.GrantExpandable{
 				EntitlementIds: []string{
@@ -147,7 +145,7 @@ func (p *accessPolicyBuilder) Grants(ctx context.Context, resource *v2.Resource,
 				zap.String("principal_arn", principalARN))
 		} else {
 			// Handle IAM user principals
-			principalResource := k8s.GenerateResourceForGrant(principalARN, resourceType.Id)
+			principalResource := k8s.GenerateResourceForGrant(principalARN, ResourceTypeIAMUser.Id)
 			g := grant.NewGrant(
 				resource,
 				"assigned",
