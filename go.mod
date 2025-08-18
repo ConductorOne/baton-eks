@@ -1,6 +1,6 @@
 module github.com/conductorone/baton-eks
 
-go 1.24.4
+go 1.24.2
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.36.5
@@ -17,7 +17,7 @@ require (
 	k8s.io/api v0.33.2
 	k8s.io/apimachinery v0.33.2
 	k8s.io/client-go v0.33.2
-	sigs.k8s.io/aws-iam-authenticator v0.7.4
+	sigs.k8s.io/aws-iam-authenticator v0.7.2
 	sigs.k8s.io/yaml v1.5.0
 )
 
@@ -78,6 +78,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jellydator/ttlcache/v3 v3.3.0 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
