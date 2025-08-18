@@ -199,20 +199,20 @@ func (r *roleBuilder) Grants(ctx context.Context, resource *v2.Resource, _ *pagi
 			}
 			if (subject.APIGroup == k8s.RBACAPIGroup || subject.APIGroup == k8s.RBACAPIGroupV1) &&
 				!strings.Contains(subject.Name, "system:") {
-				var matchingUsers []string
+				var matchingARNs []string
 				switch subject.Kind {
 				case k8s.SubjectKindGroup:
-					matchingUsers, err = r.userMappingsProvider.LookupArnsByGroup(ctx, subject.Name)
+					matchingARNs, err = r.userMappingsProvider.LookupArnsByGroup(ctx, subject.Name)
 					if err != nil {
 						return nil, "", nil, fmt.Errorf("failed to lookup ARNs for group %s: %w", subject.Name, err)
 					}
 				case k8s.SubjectKindUser:
-					matchingUsers, err = r.userMappingsProvider.LookupArnsByUsername(ctx, subject.Name)
+					matchingARNs, err = r.userMappingsProvider.LookupArnsByUsername(ctx, subject.Name)
 					if err != nil {
 						return nil, "", nil, fmt.Errorf("failed to lookup ARNs for user %s: %w", subject.Name, err)
 					}
 				}
-				rv = append(rv, processGrants(matchingUsers, resource, "member")...)
+				rv = append(rv, processGrants(matchingARNs, resource, "member")...)
 			}
 		}
 	}

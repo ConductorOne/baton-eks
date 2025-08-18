@@ -19,6 +19,7 @@ var (
 		field.WithRequired(true),
 		field.WithDescription("The access-key-id for the aws user"),
 		field.WithDisplayName("Access key"),
+		field.WithIsSecret(true),
 	)
 	SecretAccessKeyField = field.StringField(
 		accessSecret,

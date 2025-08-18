@@ -1,8 +1,16 @@
 package client
 
+import "time"
+
 // Structs for parsing mapUsers/mapRoles entries.
 type mapUser struct {
 	UserARN  string   `yaml:"userarn,omitempty"`
+	Username string   `yaml:"username,omitempty"`
+	Groups   []string `yaml:"groups,omitempty"`
+}
+
+type mapRole struct {
+	RoleARN  string   `yaml:"rolearn,omitempty"`
 	Username string   `yaml:"username,omitempty"`
 	Groups   []string `yaml:"groups,omitempty"`
 }
@@ -46,4 +54,13 @@ type EKSConfig struct {
 	Region            string
 	Endpoint          string
 	CAData            []byte
+}
+
+// IAMRole represents an AWS IAM role.
+type IAMRole struct {
+	RoleName   string
+	RoleID     string
+	ARN        string
+	CreateDate *time.Time
+	Path       *string
 }

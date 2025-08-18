@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -23,20 +24,31 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func processGrants(matchingUsers []string, resource *v2.Resource, entID string) []*v2.Grant {
+func processGrants(matchingARNs []string, resource *v2.Resource, entID string) []*v2.Grant {
 	var rv []*v2.Grant
-	if len(matchingUsers) > 0 {
+	if len(matchingARNs) > 0 {
 		// Multiple users can be mapped to the same group.
-		for _, userARN := range matchingUsers {
+		for _, principalARN := range matchingARNs {
 			var grantOpts []grant.GrantOption
-			userResource := k8s.GenerateResourceForGrant(userARN, ResourceTypeIAMUser.Id)
-			grantOpts = append(grantOpts, grant.WithAnnotation(&v2.ExternalResourceMatchID{
-				Id: userARN,
-			}))
+			resourceType := ResourceTypeIAMUser
+			if strings.Contains(principalARN, ":role/") {
+				resourceType = ResourceTypeIAMRole
+				grantExpandable := &v2.GrantExpandable{
+					EntitlementIds: []string{
+						fmt.Sprintf("iam_role:%s:assumes", principalARN),
+					},
+				}
+				grantOpts = append(grantOpts, grant.WithAnnotation(grantExpandable))
+			} else {
+				grantOpts = append(grantOpts, grant.WithAnnotation(&v2.ExternalResourceMatchID{
+					Id: principalARN,
+				}))
+			}
+			principalResource := k8s.GenerateResourceForGrant(principalARN, resourceType.Id)
 			g := grant.NewGrant(
 				resource,
 				entID,
-				userResource,
+				principalResource,
 				grantOpts...,
 			)
 			rv = append(rv, g)

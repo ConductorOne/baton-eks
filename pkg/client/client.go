@@ -2,13 +2,16 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +25,7 @@ const cacheTTL = 5 * time.Minute
 type EKSClient struct {
 	kubernetes     *kubernetes.Clientset
 	eksClient      *eks.Client
+	iamClient      *iam.Client
 	clusterName    string
 	cacheUsersMap  map[string][]string
 	cacheGroupsMap map[string][]string
@@ -39,9 +43,13 @@ func NewClient(cfg *rest.Config, awsCfg aws.Config, clusterName string) (*EKSCli
 	// Create EKS client
 	eksClient := eks.NewFromConfig(awsCfg)
 
+	// Create IAM client
+	iamClient := iam.NewFromConfig(awsCfg)
+
 	return &EKSClient{
 		kubernetes:     client,
 		eksClient:      eksClient,
+		iamClient:      iamClient,
 		clusterName:    clusterName,
 		cacheUsersMap:  make(map[string][]string),
 		cacheGroupsMap: make(map[string][]string),
@@ -50,10 +58,6 @@ func NewClient(cfg *rest.Config, awsCfg aws.Config, clusterName string) (*EKSCli
 
 // Load or refresh the identity cache (user/group mappings from aws-auth and access entries).
 func (c *EKSClient) LoadIdentityCacheMaps(ctx context.Context) error {
-	// TODO: Currently we do not support the mapRoles section of aws-auth.
-	// This is because  kubernetes groups are mapped to AWS IAM roles, but that wont show on c1
-	// and the AWS connector does not handle the entitlement for users that can assume roles,
-	// therefore we cannot expand the granted permissions from a IAM role to a user.
 	l := ctxzap.Extract(ctx)
 	c.identityMutex.Lock()
 	defer c.identityMutex.Unlock()
@@ -203,5 +207,196 @@ func (c *EKSClient) getAwsAuthMappings(ctx context.Context) (map[string][]string
 			}
 		}
 	}
+	// Parse mapRoles
+	if rolesYaml, ok := cm.Data["mapRoles"]; ok && strings.TrimSpace(rolesYaml) != "" {
+		var iamRoles []mapRole
+		if err := yaml.Unmarshal([]byte(rolesYaml), &iamRoles); err == nil {
+			for _, iamRole := range iamRoles {
+				if iamRole.Username != "" {
+					roles := userMap[iamRole.Username]
+					userMap[iamRole.Username] = append(roles, iamRole.RoleARN)
+				}
+				if len(iamRole.Groups) > 0 {
+					// User can belong to multiple groups
+					for _, group := range iamRole.Groups {
+						groups := groupMap[group]
+						groupMap[group] = append(groups, iamRole.RoleARN)
+					}
+				}
+			}
+		}
+	}
 	return userMap, groupMap, nil
+}
+
+// ListIAMRoles lists IAM roles with pagination support.
+func (c *EKSClient) ListIAMRoles(ctx context.Context, nextToken *string) ([]*IAMRole, *string, error) {
+	l := ctxzap.Extract(ctx)
+	var roles []*IAMRole
+
+	input := &iam.ListRolesInput{
+		MaxItems: aws.Int32(100),
+	}
+	if nextToken != nil && *nextToken != "" {
+		input.Marker = nextToken
+	}
+	page, err := c.iamClient.ListRoles(ctx, input)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list IAM roles: %w", err)
+	}
+
+	if page != nil {
+		for _, role := range page.Roles {
+			if role.RoleName == nil ||
+				role.RoleId == nil ||
+				role.Arn == nil {
+				l.Warn("missing information, skipping IAM role", zap.String("role_name", *role.RoleName))
+				continue
+			}
+			roles = append(roles, &IAMRole{
+				RoleName:   *role.RoleName,
+				RoleID:     *role.RoleId,
+				ARN:        *role.Arn,
+				CreateDate: role.CreateDate,
+				Path:       role.Path,
+			})
+		}
+		return roles, page.Marker, nil
+	}
+
+	return roles, nil, nil
+}
+
+// GetIAMRole gets details for a specific IAM role.
+func (c *EKSClient) GetIAMRole(ctx context.Context, roleName string) (*IAMRole, error) {
+	result, err := c.iamClient.GetRole(ctx, &iam.GetRoleInput{
+		RoleName: aws.String(roleName),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get IAM role %s: %w", roleName, err)
+	}
+
+	role := result.Role
+	if role.RoleName == nil ||
+		role.RoleId == nil ||
+		role.Arn == nil {
+		return nil, fmt.Errorf("missing information, skipping IAM role %s", *role.RoleName)
+	}
+	return &IAMRole{
+		RoleName:   *role.RoleName,
+		RoleID:     *role.RoleId,
+		ARN:        *role.Arn,
+		CreateDate: role.CreateDate,
+		Path:       role.Path,
+	}, nil
+}
+
+// GetIAMRoleTrustPolicy gets the trust policy for a specific IAM role.
+func (c *EKSClient) GetIAMRoleTrustPolicy(ctx context.Context, roleName string) (string, error) {
+	result, err := c.iamClient.GetRole(ctx, &iam.GetRoleInput{
+		RoleName: aws.String(roleName),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get IAM role %s: %w", roleName, err)
+	}
+
+	if result.Role.AssumeRolePolicyDocument == nil {
+		return "", fmt.Errorf("no trust policy found for role %s", roleName)
+	}
+
+	return *result.Role.AssumeRolePolicyDocument, nil
+}
+
+// TrustPolicy represents the structure of an IAM role trust policy.
+type TrustPolicy struct {
+	Version   string      `json:"Version"`
+	Statement []Statement `json:"Statement"`
+}
+
+// Statement represents a statement in the trust policy.
+type Statement struct {
+	Effect    string                 `json:"Effect"`
+	Principal map[string]interface{} `json:"Principal"`
+	Action    interface{}            `json:"Action"`
+	Condition map[string]interface{} `json:"Condition,omitempty"`
+}
+
+// GetIAMRoleTrustPrincipals gets the principals that can assume a specific IAM role.
+func (c *EKSClient) GetIAMRoleTrustPrincipals(ctx context.Context, roleName string) ([]string, error) {
+	trustPolicyJSON, err := c.GetIAMRoleTrustPolicy(ctx, roleName)
+	if err != nil {
+		return nil, err
+	}
+
+	// URL decode the trust policy document as AWS IAM API returns URL-encoded JSON
+	decodedPolicy, err := url.QueryUnescape(trustPolicyJSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to URL decode trust policy for role %s: %w", roleName, err)
+	}
+
+	var trustPolicy TrustPolicy
+	if err := json.Unmarshal([]byte(decodedPolicy), &trustPolicy); err != nil {
+		return nil, fmt.Errorf("failed to parse trust policy for role %s: %w", roleName, err)
+	}
+
+	var principals []string
+	for _, statement := range trustPolicy.Statement {
+		if statement.Effect == "Allow" {
+			// Check if the action allows assuming the role
+			actions := c.extractActions(statement.Action)
+			for _, action := range actions {
+				if action == "sts:AssumeRole" {
+					// Extract principals from the statement
+					statementPrincipals := extractPrincipals(statement.Principal)
+					principals = append(principals, statementPrincipals...)
+				}
+			}
+		}
+	}
+
+	return principals, nil
+}
+
+// extractActions extracts actions from the Action field which can be a string or array.
+func (c *EKSClient) extractActions(action interface{}) []string {
+	var actions []string
+	switch v := action.(type) {
+	case string:
+		actions = append(actions, v)
+	case []interface{}:
+		for _, a := range v {
+			if actionStr, ok := a.(string); ok {
+				actions = append(actions, actionStr)
+			}
+		}
+	}
+	return actions
+}
+
+// extractPrincipals extracts principal ARNs from the Principal field.
+func extractPrincipals(principal map[string]interface{}) []string {
+	var principals []string
+
+	// Handle AWS principals
+	if awsPrincipals, ok := principal["AWS"]; ok {
+		principals = append(principals, extractPrincipalValues(awsPrincipals)...)
+	}
+
+	return principals
+}
+
+// extractPrincipalValues extracts values from principal fields which can be string or array.
+func extractPrincipalValues(principal interface{}) []string {
+	var values []string
+	switch v := principal.(type) {
+	case string:
+		values = append(values, v)
+	case []interface{}:
+		for _, p := range v {
+			if principalStr, ok := p.(string); ok {
+				values = append(values, principalStr)
+			}
+		}
+	}
+	return values
 }
