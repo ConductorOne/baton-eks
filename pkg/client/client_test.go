@@ -100,11 +100,9 @@ func TestExtractActions(t *testing.T) {
 }
 
 func TestExtractPrincipalValues(t *testing.T) {
-	c := &EKSClient{}
-
 	// Test string principal
 	principal := "arn:aws:iam::123456789012:user/testuser"
-	values := c.extractPrincipalValues(principal)
+	values := extractPrincipalValues(principal)
 	if len(values) != 1 || values[0] != principal {
 		t.Errorf("Expected [%s], got %v", principal, values)
 	}
@@ -114,20 +112,18 @@ func TestExtractPrincipalValues(t *testing.T) {
 		"arn:aws:iam::123456789012:user/user1",
 		"arn:aws:iam::123456789012:user/user2",
 	}
-	values = c.extractPrincipalValues(principalArray)
+	values = extractPrincipalValues(principalArray)
 	if len(values) != 2 {
 		t.Errorf("Expected 2 principals, got %d", len(values))
 	}
 }
 
 func TestExtractPrincipals(t *testing.T) {
-	c := &EKSClient{}
-
 	// Test AWS principals
 	principal := map[string]interface{}{
 		"AWS": "arn:aws:iam::123456789012:user/testuser",
 	}
-	principals := c.extractPrincipals(principal)
+	principals := extractPrincipals(principal)
 	if len(principals) != 1 || principals[0] != "arn:aws:iam::123456789012:user/testuser" {
 		t.Errorf("Expected [arn:aws:iam::123456789012:user/testuser], got %v", principals)
 	}
@@ -138,7 +134,7 @@ func TestExtractPrincipals(t *testing.T) {
 		"Service":   "ecs-tasks.amazonaws.com",
 		"Federated": "cognito-identity.amazonaws.com",
 	}
-	principals = c.extractPrincipals(principal)
+	principals = extractPrincipals(principal)
 	if len(principals) != 1 {
 		t.Errorf("Expected 1 principals, got %d", len(principals))
 	}

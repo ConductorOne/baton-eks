@@ -231,6 +231,7 @@ func (c *EKSClient) getAwsAuthMappings(ctx context.Context) (map[string][]string
 
 // ListIAMRoles lists IAM roles with pagination support.
 func (c *EKSClient) ListIAMRoles(ctx context.Context, nextToken *string) ([]*IAMRole, *string, error) {
+	l := ctxzap.Extract(ctx)
 	var roles []*IAMRole
 
 	input := &iam.ListRolesInput{
@@ -244,17 +245,26 @@ func (c *EKSClient) ListIAMRoles(ctx context.Context, nextToken *string) ([]*IAM
 		return nil, nil, fmt.Errorf("failed to list IAM roles: %w", err)
 	}
 
-	for _, role := range page.Roles {
-		roles = append(roles, &IAMRole{
-			RoleName:   *role.RoleName,
-			RoleID:     *role.RoleId,
-			ARN:        *role.Arn,
-			CreateDate: role.CreateDate,
-			Path:       role.Path,
-		})
+	if page != nil {
+		for _, role := range page.Roles {
+			if role.RoleName == nil ||
+				role.RoleId == nil ||
+				role.Arn == nil {
+				l.Warn("missing information, skipping IAM role", zap.String("role_name", *role.RoleName))
+				continue
+			}
+			roles = append(roles, &IAMRole{
+				RoleName:   *role.RoleName,
+				RoleID:     *role.RoleId,
+				ARN:        *role.Arn,
+				CreateDate: role.CreateDate,
+				Path:       role.Path,
+			})
+		}
+		return roles, page.Marker, nil
 	}
 
-	return roles, page.Marker, nil
+	return roles, nil, nil
 }
 
 // GetIAMRole gets details for a specific IAM role.
@@ -267,6 +277,11 @@ func (c *EKSClient) GetIAMRole(ctx context.Context, roleName string) (*IAMRole, 
 	}
 
 	role := result.Role
+	if role.RoleName == nil ||
+		role.RoleId == nil ||
+		role.Arn == nil {
+		return nil, fmt.Errorf("missing information, skipping IAM role %s", *role.RoleName)
+	}
 	return &IAMRole{
 		RoleName:   *role.RoleName,
 		RoleID:     *role.RoleId,
@@ -332,7 +347,7 @@ func (c *EKSClient) GetIAMRoleTrustPrincipals(ctx context.Context, roleName stri
 			for _, action := range actions {
 				if action == "sts:AssumeRole" {
 					// Extract principals from the statement
-					statementPrincipals := c.extractPrincipals(statement.Principal)
+					statementPrincipals := extractPrincipals(statement.Principal)
 					principals = append(principals, statementPrincipals...)
 				}
 			}
@@ -359,19 +374,19 @@ func (c *EKSClient) extractActions(action interface{}) []string {
 }
 
 // extractPrincipals extracts principal ARNs from the Principal field.
-func (c *EKSClient) extractPrincipals(principal map[string]interface{}) []string {
+func extractPrincipals(principal map[string]interface{}) []string {
 	var principals []string
 
 	// Handle AWS principals
 	if awsPrincipals, ok := principal["AWS"]; ok {
-		principals = append(principals, c.extractPrincipalValues(awsPrincipals)...)
+		principals = append(principals, extractPrincipalValues(awsPrincipals)...)
 	}
 
 	return principals
 }
 
 // extractPrincipalValues extracts values from principal fields which can be string or array.
-func (c *EKSClient) extractPrincipalValues(principal interface{}) []string {
+func extractPrincipalValues(principal interface{}) []string {
 	var values []string
 	switch v := principal.(type) {
 	case string:
