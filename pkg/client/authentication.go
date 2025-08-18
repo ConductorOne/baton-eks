@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"sync"
@@ -53,7 +52,7 @@ func GenerateEKSToken(clusterID string, region string, assumeRoleARN string) (st
 		AssumeRoleARN: assumeRoleARN,
 	}
 
-	tk, err := gen.GetWithOptions(context.Background(), opts)
+	tk, err := gen.GetWithOptions(opts)
 	if err != nil {
 		return "", fmt.Errorf("failed to get EKS token: %w", err)
 	}
