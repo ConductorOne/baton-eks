@@ -28,7 +28,6 @@ import (
 type Connector struct {
 	k8s                     *k8s.Kubernetes
 	eksClient               *client.EKSClient
-	useAssumeRole           bool
 	_onceCallingConfig      map[string]*sync.Once
 	_callingConfig          map[string]awsSdk.Config
 	_callingConfigError     map[string]error
