@@ -4,14 +4,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/field"
 )
 
-const (
-	accessKey     = "eks-access-key"
-	accessSecret  = "eks-secret-access-key" // #nosec G101
-	region        = "eks-region"
-	assumeRoleArn = "eks-assume-role-arn"
-	clusterName   = "eks-cluster-name"
-)
-
 var (
 	// Add the SchemaFields for the Config.
 	ExternalIdField = field.StringField(
@@ -51,25 +43,25 @@ var (
 		field.WithDisplayName("Assume role ARN"),
 	)
 	ClusterNameField = field.StringField(
-		clusterName,
+		"eks-cluster-name",
 		field.WithRequired(true),
 		field.WithDescription("The name of the EKS cluster to connect to"),
 		field.WithDisplayName("Cluster name"),
 	)
 	RegionField = field.StringField(
-		region,
+		"eks-region",
 		field.WithRequired(true),
 		field.WithDescription("The region for the aws account"),
 		field.WithDisplayName("Region"),
 	)
 	AccessKeyIdField = field.StringField(
-		accessKey,
+		"eks-access-key",
 		field.WithDescription("The access-key-id for the aws user"),
 		field.WithDisplayName("Access key"),
 		field.WithIsSecret(true),
 	)
 	SecretAccessKeyField = field.StringField(
-		accessSecret,
+		"eks-secret-access-key",
 		field.WithDescription("The secret-access-key for the aws user"),
 		field.WithDisplayName("Secret access key"),
 		field.WithIsSecret(true),
