@@ -49,24 +49,16 @@ func getConnector[T field.Configurable](ctx context.Context, config *cfg.Eks) (t
 		return nil, err
 	}
 
-	// Extract the configuration values
-	externalID := config.ExternalId
-	assumeRole := config.RoleArn
-	clusterName := config.EksClusterName
-	accessKey := config.EksAccessKey
-	secretKey := config.EksSecretAccessKey
-	region := config.EksRegion
-	assumeRole = config.EksAssumeRoleArn
-
 	eksConfig := eksCon.Config{
-		GlobalAccessKeyID:       accessKey,
-		GlobalSecretAccessKey:   secretKey,
-		GlobalRegion:            region,
-		GlobalRoleARN:           assumeRole,
-		ExternalID:              externalID,
-		RoleARN:                 assumeRole,
-		ClusterName:             clusterName,
+		GlobalAccessKeyID:       config.GlobalAccessKeyId,
+		GlobalSecretAccessKey:   config.GlobalSecretAccessKey,
+		GlobalRegion:            config.GlobalRegion,
+		GlobalRoleARN:           config.GlobalRoleArn,
+		ExternalID:              config.ExternalId,
+		RoleARN:                 config.RoleArn,
+		ClusterName:             config.EksClusterName,
 		GlobalBindingExternalID: config.GlobalBindingExternalId,
+		Region:                  config.EksRegion,
 	}
 
 	eksConnector, err := eksCon.New(ctx, eksConfig)

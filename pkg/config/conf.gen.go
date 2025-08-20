@@ -11,11 +11,9 @@ type Eks struct {
 	GlobalRoleArn string `mapstructure:"global-role-arn"`
 	GlobalSecretAccessKey string `mapstructure:"global-secret-access-key"`
 	RoleArn string `mapstructure:"role-arn"`
-	UseAssume bool `mapstructure:"use-assume"`
 	EksAccessKey string `mapstructure:"eks-access-key"`
 	EksSecretAccessKey string `mapstructure:"eks-secret-access-key"`
 	EksRegion string `mapstructure:"eks-region"`
-	EksAssumeRoleArn string `mapstructure:"eks-assume-role-arn"`
 	EksClusterName string `mapstructure:"eks-cluster-name"`
 }
 

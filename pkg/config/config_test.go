@@ -19,7 +19,6 @@ func TestValidateConfig(t *testing.T) {
 				EksAccessKey:       "MYACCESSKEY01",
 				EksSecretAccessKey: "secretacesskey010203",
 				EksRegion:          "us-east-1",
-				EksAssumeRoleArn:   "arn:aws:iam::1234567891012:role/MyRole",
 				EksClusterName:     "my-cluster",
 			},
 			wantErr: false,
