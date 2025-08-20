@@ -69,7 +69,7 @@ func getEKSClusterCfg(ctx context.Context, eksClient *eks.Client, region string,
 		)
 		return nil, err
 	}
-	l.Info("Cluster information", zap.Any("result", result))
+
 	if result.Cluster == nil {
 		return nil, fmt.Errorf("EKS cluster %s not found", clusterName)
 	}
