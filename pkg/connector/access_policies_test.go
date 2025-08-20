@@ -1,7 +1,6 @@
 package connector
 
 import (
-	"context"
 	"testing"
 
 	"github.com/conductorone/baton-eks/pkg/client"
@@ -16,7 +15,7 @@ func TestPolicyBuilder_ResourceType(t *testing.T) {
 	builder := NewAccessPolicyBuilder(eksClient)
 
 	// Test resource type
-	resourceType := builder.ResourceType(context.Background())
+	resourceType := builder.ResourceType(t.Context())
 	assert.Equal(t, "access_policy", resourceType.Id)
 	assert.Equal(t, "Access Policy", resourceType.DisplayName)
 	assert.Equal(t, "EKS Access Policy", resourceType.Description)
@@ -41,7 +40,7 @@ func TestPolicyBuilder_Entitlements(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test entitlements
-	entitlements, _, _, err := builder.Entitlements(context.Background(), resource, nil)
+	entitlements, _, _, err := builder.Entitlements(t.Context(), resource, nil)
 	assert.NoError(t, err)
 	assert.Len(t, entitlements, 1)
 	assert.Equal(t, "access_policy:arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy:assigned", entitlements[0].Id)

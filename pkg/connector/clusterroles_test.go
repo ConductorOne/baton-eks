@@ -116,7 +116,7 @@ func TestClusterRoleBuilder_ResourceType(t *testing.T) {
 
 	builder := NewClusterRoleBuilder(nil, mockBindingProvider, nil)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	resourceType := builder.ResourceType(ctx)
 
 	assert.Equal(t, k8s.ResourceTypeClusterRole, resourceType)
