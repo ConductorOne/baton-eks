@@ -4,6 +4,14 @@ package config
 import "reflect" 
 
 type Eks struct {
+	ExternalId string `mapstructure:"external-id"`
+	GlobalAccessKeyId string `mapstructure:"global-access-key-id"`
+	GlobalBindingExternalId string `mapstructure:"global-binding-external-id"`
+	GlobalRegion string `mapstructure:"global-region"`
+	GlobalRoleArn string `mapstructure:"global-role-arn"`
+	GlobalSecretAccessKey string `mapstructure:"global-secret-access-key"`
+	RoleArn string `mapstructure:"role-arn"`
+	UseAssume bool `mapstructure:"use-assume"`
 	EksAccessKey string `mapstructure:"eks-access-key"`
 	EksSecretAccessKey string `mapstructure:"eks-secret-access-key"`
 	EksRegion string `mapstructure:"eks-region"`

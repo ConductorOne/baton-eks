@@ -1,11 +1,17 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
+	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
+	awsV1 "github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"sigs.k8s.io/aws-iam-authenticator/pkg/token"
 )
 
@@ -17,8 +23,8 @@ type EksTokenRefreshRoundTripper struct {
 	Base          http.RoundTripper // The underlying HTTP transport
 	token         string
 	mu            sync.Mutex
-	exp           time.Time // Expiration time of the token
-
+	exp           time.Time    // Expiration time of the token
+	AwsConfig     awsV2.Config // AWS config with assumed role credentials
 }
 
 func (t *EksTokenRefreshRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -27,7 +33,7 @@ func (t *EksTokenRefreshRoundTripper) RoundTrip(req *http.Request) (*http.Respon
 	// Check if token is expired or not yet generated
 	// EKS tokens last for ~15 minutes. We can generate a new one proactively.
 	if t.token == "" || time.Until(t.exp) < 1*time.Minute {
-		newToken, err := GenerateEKSToken(t.ClusterID, t.Region, t.AssumeRoleARN)
+		newToken, err := GenerateEKSTokenWithCredentials(req.Context(), t.ClusterID, t.Region, t.AwsConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to refresh EKS token: %w", err)
 		}
@@ -53,6 +59,45 @@ func GenerateEKSToken(clusterID string, region string, assumeRoleARN string) (st
 	}
 
 	tk, err := gen.GetWithOptions(opts)
+	if err != nil {
+		return "", fmt.Errorf("failed to get EKS token: %w", err)
+	}
+
+	return tk.Token, nil
+}
+
+// GenerateEKSTokenWithCredentials generates a short-lived authentication token for EKS using provided AWS credentials.
+func GenerateEKSTokenWithCredentials(ctx context.Context, clusterID string, region string, awsConfig awsV2.Config) (string, error) {
+	// Retrieve credentials from the AWS v2 config
+	creds, err := awsConfig.Credentials.Retrieve(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve credentials: %w", err)
+	}
+
+	// Create AWS v1 session with the credentials
+	sess, err := session.NewSession(&awsV1.Config{
+		Region: awsV1.String(region),
+		Credentials: credentials.NewStaticCredentials(
+			creds.AccessKeyID,
+			creds.SecretAccessKey,
+			creds.SessionToken,
+		),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to create AWS session: %w", err)
+	}
+
+	// Create v1 STS client
+	stsClient := sts.New(sess)
+
+	// Create the token generator
+	gen, err := token.NewGenerator(false, false)
+	if err != nil {
+		return "", fmt.Errorf("failed to create EKS token generator: %w", err)
+	}
+
+	// Generate token using the v1 STS client
+	tk, err := gen.GetWithSTS(clusterID, stsClient)
 	if err != nil {
 		return "", fmt.Errorf("failed to get EKS token: %w", err)
 	}

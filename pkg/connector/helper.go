@@ -89,7 +89,45 @@ func getAWSConfig(ctx context.Context, accessKey string, secretKey string, regio
 }
 
 // getEKSClusterConfig retrieves the EKS cluster details.
-func getEKSClusterConfig(ctx context.Context, awsCfg aws.Config, clusterName, region string) (*client.EKSConfig, error) {
+func getEKSClusterCfg(ctx context.Context, eksClient *eks.Client, region string, clusterName string) (*client.EKSConfig, error) {
+	l := ctxzap.Extract(ctx)
+
+	// Describe the EKS cluster
+	result, err := eksClient.DescribeCluster(ctx, &eks.DescribeClusterInput{
+		Name: aws.String(clusterName),
+	})
+	if err != nil {
+		l.Error("failed to describe EKS cluster",
+			zap.String("clusterName", clusterName),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+	l.Info("Cluster information", zap.Any("result", result))
+	if result.Cluster == nil {
+		return nil, fmt.Errorf("EKS cluster %s not found", clusterName)
+	}
+	caData, err := base64.StdEncoding.DecodeString(*result.Cluster.CertificateAuthority.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode CA data: %w", err)
+	}
+
+	parsedURL, err := url.Parse(*result.Cluster.Endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing cluster endpoint URL: %w", err)
+	}
+	serverName := parsedURL.Hostname()
+	return &client.EKSConfig{
+		ClusterServerName: serverName,
+		ClusterName:       *result.Cluster.Name,
+		Region:            region,
+		Endpoint:          *result.Cluster.Endpoint,
+		CAData:            caData,
+	}, nil
+}
+
+// getEKSClusterConfig retrieves the EKS cluster details.
+func getEKSClusterConfig(ctx context.Context, awsCfg aws.Config, clusterName string) (*client.EKSConfig, error) {
 	l := ctxzap.Extract(ctx)
 	eksClient := eks.NewFromConfig(awsCfg)
 
@@ -120,21 +158,22 @@ func getEKSClusterConfig(ctx context.Context, awsCfg aws.Config, clusterName, re
 	return &client.EKSConfig{
 		ClusterServerName: serverName,
 		ClusterName:       *result.Cluster.Name,
-		Region:            region,
+		Region:            awsCfg.Region,
 		Endpoint:          *result.Cluster.Endpoint,
 		CAData:            caData,
 	}, nil
 }
 
 // newKubernetesClient creates a new Kubernetes clientset for an EKS cluster.
-func newKubernetesConfig(ctx context.Context, eksCfg *client.EKSConfig, assumeRoleArn string) (*rest.Config, error) {
+func newKubernetesConfig(ctx context.Context, eksCfg *client.EKSConfig, awsConfig aws.Config) (*rest.Config, error) {
 	l := ctxzap.Extract(ctx)
 	err := validatePEMCertificate(eksCfg.CAData)
 	if err != nil {
 		l.Error("CAData is invalid", zap.Error(err))
 		return nil, err
 	}
-	token, err := client.GenerateEKSToken(eksCfg.ClusterName, eksCfg.Region, assumeRoleArn)
+
+	token, err := client.GenerateEKSTokenWithCredentials(ctx, eksCfg.ClusterName, eksCfg.Region, awsConfig)
 	if err != nil {
 		l.Error("Failed to generate EKS token", zap.Error(err))
 		return nil, err
@@ -153,10 +192,10 @@ func newKubernetesConfig(ctx context.Context, eksCfg *client.EKSConfig, assumeRo
 				rt = http.DefaultTransport
 			}
 			return &client.EksTokenRefreshRoundTripper{
-				ClusterID:     eksCfg.ClusterName,
-				Region:        eksCfg.Region,
-				AssumeRoleARN: assumeRoleArn,
-				Base:          rt,
+				ClusterID: eksCfg.ClusterName,
+				Region:    eksCfg.Region,
+				Base:      rt,
+				AwsConfig: awsConfig,
 			}
 		},
 	}, nil
