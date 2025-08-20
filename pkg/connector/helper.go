@@ -11,10 +11,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/conductorone/baton-eks/pkg/client"
 	k8s "github.com/conductorone/baton-kubernetes/pkg/connector"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -57,41 +54,9 @@ func processGrants(matchingARNs []string, resource *v2.Resource, entID string) [
 	return rv
 }
 
-func getAWSConfig(ctx context.Context, accessKey string, secretKey string, region string, assumeRole string) (aws.Config, error) {
-	l := ctxzap.Extract(ctx)
-	creds := aws.NewCredentialsCache(
-		credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
-	)
-	baseCfg := aws.Config{
-		Region:      region,
-		Credentials: creds,
-	}
-
-	// Step 2: Use STS to assume role
-	stsClient := sts.NewFromConfig(baseCfg)
-	assumedCreds := stscreds.NewAssumeRoleProvider(stsClient, assumeRole)
-
-	roleCfg := aws.Config{
-		Region:      baseCfg.Region,
-		Credentials: aws.NewCredentialsCache(assumedCreds),
-	}
-	// End aws authentication
-
-	l.Debug("Successfully assumed role", zap.String("role arn", assumeRole))
-	callerIdentity, err := sts.NewFromConfig(roleCfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-	if err != nil {
-		l.Error("failed to get caller identity with assumed role", zap.Error(err))
-		return aws.Config{}, err
-	}
-	l.Debug("Current identity", zap.String("arn", *callerIdentity.Arn))
-
-	return roleCfg, nil
-}
-
 // getEKSClusterConfig retrieves the EKS cluster details.
-func getEKSClusterConfig(ctx context.Context, awsCfg aws.Config, clusterName, region string) (*client.EKSConfig, error) {
+func getEKSClusterCfg(ctx context.Context, eksClient *eks.Client, region string, clusterName string) (*client.EKSConfig, error) {
 	l := ctxzap.Extract(ctx)
-	eksClient := eks.NewFromConfig(awsCfg)
 
 	// Describe the EKS cluster
 	result, err := eksClient.DescribeCluster(ctx, &eks.DescribeClusterInput{
@@ -104,6 +69,7 @@ func getEKSClusterConfig(ctx context.Context, awsCfg aws.Config, clusterName, re
 		)
 		return nil, err
 	}
+
 	if result.Cluster == nil {
 		return nil, fmt.Errorf("EKS cluster %s not found", clusterName)
 	}
@@ -127,14 +93,15 @@ func getEKSClusterConfig(ctx context.Context, awsCfg aws.Config, clusterName, re
 }
 
 // newKubernetesClient creates a new Kubernetes clientset for an EKS cluster.
-func newKubernetesConfig(ctx context.Context, eksCfg *client.EKSConfig, assumeRoleArn string) (*rest.Config, error) {
+func newKubernetesConfig(ctx context.Context, eksCfg *client.EKSConfig, awsConfig aws.Config) (*rest.Config, error) {
 	l := ctxzap.Extract(ctx)
 	err := validatePEMCertificate(eksCfg.CAData)
 	if err != nil {
 		l.Error("CAData is invalid", zap.Error(err))
 		return nil, err
 	}
-	token, err := client.GenerateEKSToken(eksCfg.ClusterName, eksCfg.Region, assumeRoleArn)
+
+	token, err := client.GenerateEKSTokenWithCredentials(ctx, eksCfg.ClusterName, eksCfg.Region, awsConfig)
 	if err != nil {
 		l.Error("Failed to generate EKS token", zap.Error(err))
 		return nil, err
@@ -153,10 +120,10 @@ func newKubernetesConfig(ctx context.Context, eksCfg *client.EKSConfig, assumeRo
 				rt = http.DefaultTransport
 			}
 			return &client.EksTokenRefreshRoundTripper{
-				ClusterID:     eksCfg.ClusterName,
-				Region:        eksCfg.Region,
-				AssumeRoleARN: assumeRoleArn,
-				Base:          rt,
+				ClusterID: eksCfg.ClusterName,
+				Region:    eksCfg.Region,
+				Base:      rt,
+				AwsConfig: awsConfig,
 			}
 		},
 	}, nil

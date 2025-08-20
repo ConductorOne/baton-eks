@@ -56,6 +56,23 @@ func NewClient(cfg *rest.Config, awsCfg aws.Config, clusterName string) (*EKSCli
 	}, nil
 }
 
+func NewEKSClient(cfg *rest.Config, iamClient *iam.Client, eksClient *eks.Client, clusterName string) (*EKSClient, error) {
+	// Create kubernetes client
+	client, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("creating kubernetes client: %w", err)
+	}
+
+	return &EKSClient{
+		kubernetes:     client,
+		eksClient:      eksClient,
+		iamClient:      iamClient,
+		clusterName:    clusterName,
+		cacheUsersMap:  make(map[string][]string),
+		cacheGroupsMap: make(map[string][]string),
+	}, nil
+}
+
 // Load or refresh the identity cache (user/group mappings from aws-auth and access entries).
 func (c *EKSClient) LoadIdentityCacheMaps(ctx context.Context) error {
 	l := ctxzap.Extract(ctx)

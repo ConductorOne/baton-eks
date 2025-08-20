@@ -43,20 +43,25 @@ func main() {
 	}
 }
 
-func getConnector[T field.Configurable](ctx context.Context, config T) (types.ConnectorServer, error) {
+func getConnector[T field.Configurable](ctx context.Context, config *cfg.Eks) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
 	if err := field.Validate(cfg.Config, config); err != nil {
 		return nil, err
 	}
 
-	// Extract the configuration values
-	accessKey := config.GetString(cfg.AccessKeyIdField.FieldName)
-	secretKey := config.GetString(cfg.SecretAccessKeyField.FieldName)
-	region := config.GetString(cfg.RegionField.FieldName)
-	assumeRole := config.GetString(cfg.AssumeRoleArnField.FieldName)
-	clusterName := config.GetString(cfg.ClusterNameField.FieldName)
+	eksConfig := eksCon.Config{
+		GlobalAccessKeyID:       config.GlobalAccessKeyId,
+		GlobalSecretAccessKey:   config.GlobalSecretAccessKey,
+		GlobalRegion:            config.GlobalRegion,
+		GlobalRoleARN:           config.GlobalRoleArn,
+		ExternalID:              config.ExternalId,
+		RoleARN:                 config.RoleArn,
+		ClusterName:             config.EksClusterName,
+		GlobalBindingExternalID: config.GlobalBindingExternalId,
+		Region:                  config.EksRegion,
+	}
 
-	eksConnector, err := eksCon.New(ctx, accessKey, secretKey, region, assumeRole, clusterName)
+	eksConnector, err := eksCon.New(ctx, eksConfig)
 	if err != nil {
 		l.Error("error creating EKS connector", zap.Error(err))
 		return nil, err
