@@ -87,6 +87,13 @@ func New(
 		return nil, fmt.Errorf("eks connector: config load failure: %w", err)
 	}
 
+	if cfg.ExternalId == "" && cfg.EksAccessKey != "" && cfg.EksSecretAccessKey != "" {
+		baseConfig, err = getOnPremAWSConfig(ctx, cfg, httpClient)
+		if err != nil {
+			return nil, fmt.Errorf("eks connector: config load failure: %w", err)
+		}
+	}
+
 	newConnector := &Connector{
 		awsConfig:           baseConfig.Copy(),
 		baseClient:          httpClient,
@@ -237,18 +244,40 @@ func (o *Connector) getCallingConfig(ctx context.Context, region string) (awsSdk
 }
 
 func (c *Connector) SetupClients(ctx context.Context) (*iam.Client, *eks.Client, error) {
-	globalCallingConfig, err := c.getCallingConfig(ctx, c.config.GlobalRegion)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	iamClient := iam.NewFromConfig(globalCallingConfig)
-	// Use the specific region where the EKS cluster exists, not the global region
 	callingConfig, err := c.getCallingConfig(ctx, c.config.EksRegion)
 	if err != nil {
 		return nil, nil, err
 	}
+	iamClient := iam.NewFromConfig(callingConfig)
 	eksClient := eks.NewFromConfig(callingConfig)
 
 	return iamClient, eksClient, nil
+}
+
+func getOnPremAWSConfig(ctx context.Context, cfg *config.Eks, httpClient *http.Client) (awsSdk.Config, error) {
+	creds := awsSdk.NewCredentialsCache(
+		credentials.NewStaticCredentialsProvider(cfg.EksAccessKey, cfg.EksSecretAccessKey, ""),
+	)
+	baseCfg := awsSdk.Config{
+		Region:       cfg.EksRegion,
+		Credentials:  creds,
+		HTTPClient:   httpClient,
+		DefaultsMode: awsSdk.DefaultsModeInRegion,
+	}
+
+	// Step 2: Use STS to assume role
+	stsClient := sts.NewFromConfig(baseCfg)
+	assumedCreds := stscreds.NewAssumeRoleProvider(stsClient, cfg.RoleArn)
+
+	roleCfg := awsSdk.Config{
+		Region:      baseCfg.Region,
+		Credentials: awsSdk.NewCredentialsCache(assumedCreds),
+	}
+	// End aws authentication
+	_, err := roleCfg.Credentials.Retrieve(ctx)
+	if err != nil {
+		return awsSdk.Config{}, fmt.Errorf("eks-connector: unable to assume role into '%s': %w", cfg.RoleArn, err)
+	}
+
+	return roleCfg, nil
 }
