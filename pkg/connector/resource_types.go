@@ -7,7 +7,7 @@ import (
 // EKS-specific resource types.
 var (
 	ResourceTypeIAMRole = &v2.ResourceType{
-		Id:          "iam_role",
+		Id:          "role",
 		DisplayName: "IAM Role",
 		Description: "AWS IAM Role",
 		Traits:      []v2.ResourceType_Trait{v2.ResourceType_TRAIT_ROLE},
@@ -24,6 +24,13 @@ var (
 		Id:          "access_policy",
 		DisplayName: "Access Policy",
 		Description: "EKS Access Policy",
+		Traits:      []v2.ResourceType_Trait{v2.ResourceType_TRAIT_ROLE},
+	}
+
+	ResourceTypeNamespaceRole = &v2.ResourceType{
+		Id:          "namespace_role",
+		DisplayName: "Namespace Role",
+		Description: "Kubernetes Namespace Role",
 		Traits:      []v2.ResourceType_Trait{v2.ResourceType_TRAIT_ROLE},
 	}
 )

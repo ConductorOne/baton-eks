@@ -18,7 +18,7 @@ func TestIAMRoleBuilder_ResourceType(t *testing.T) {
 	resourceType := builder.ResourceType(t.Context())
 
 	assert.NotNil(t, resourceType)
-	assert.Equal(t, "iam_role", resourceType.Id)
+	assert.Equal(t, "role", resourceType.Id)
 	assert.Equal(t, "IAM Role", resourceType.DisplayName)
 	assert.Equal(t, "AWS IAM Role", resourceType.Description)
 }
@@ -44,5 +44,5 @@ func TestIAMRoleBuilder_RoleResource(t *testing.T) {
 	assert.NotNil(t, resource)
 	assert.Equal(t, "test-role", resource.DisplayName)
 	assert.Equal(t, "arn:aws:iam::123456789012:role/test-role", resource.Id.Resource)
-	assert.Equal(t, "iam_role", resource.Id.ResourceType)
+	assert.Equal(t, "role", resource.Id.ResourceType)
 }
