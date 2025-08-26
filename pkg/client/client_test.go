@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"encoding/json"
 	"net/url"
 	"testing"
@@ -48,7 +47,7 @@ func TestEKSClient_LoadIdentityCacheMaps(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Test that the method exists and doesn't panic
-	ctx := context.Background()
+	ctx := t.Context()
 	_ = client.LoadIdentityCacheMaps(ctx)
 	// This will likely fail in a test environment, but we're just testing the interface
 	assert.NotNil(t, client)

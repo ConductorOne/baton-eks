@@ -23,24 +23,19 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/conductorone/baton-eks/pkg/config"
 )
 
 type Connector struct {
-	k8s                     *k8s.Kubernetes
-	eksClient               *client.EKSClient
-	_onceCallingConfig      map[string]*sync.Once
-	_callingConfig          map[string]awsSdk.Config
-	_callingConfigError     map[string]error
-	globalRegion            string
-	region                  string
-	roleARN                 string
-	externalID              string
-	globalBindingExternalID string
-	globalRoleARN           string
-	globalSecretAccessKey   string
-	globalAccessKeyID       string
-	baseConfig              awsSdk.Config
-	baseClient              *http.Client
+	k8s                 *k8s.Kubernetes
+	eksClient           *client.EKSClient
+	_onceCallingConfig  map[string]*sync.Once
+	_callingConfig      map[string]awsSdk.Config
+	_callingConfigError map[string]error
+	config              *config.Eks
+	awsConfig           awsSdk.Config
+	baseClient          *http.Client
 }
 
 // ResourceSyncers returns a ResourceSyncer for each resource type that should be synced from the upstream service.
@@ -73,24 +68,12 @@ func (d *Connector) Validate(ctx context.Context) (annotations.Annotations, erro
 	return nil, nil
 }
 
-type Config struct {
-	GlobalBindingExternalID string
-	GlobalRegion            string
-	GlobalRoleARN           string
-	GlobalSecretAccessKey   string
-	GlobalAccessKeyID       string
-	ExternalID              string
-	RoleARN                 string
-	ClusterName             string
-	Region                  string
-}
-
 // New returns a new instance of the connector.
 // EKS connector is a wrapper around the Kubernetes connector,
 // handles EKS specific logic like authentication and user mappings.
 func New(
 	ctx context.Context,
-	config Config,
+	cfg *config.Eks,
 ) (*Connector, error) {
 	l := ctxzap.Extract(ctx)
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
@@ -98,26 +81,26 @@ func New(
 		return nil, err
 	}
 
-	opts := GetAwsConfigOptions(httpClient, config)
+	opts := GetAwsConfigOptions(httpClient, cfg)
 	baseConfig, err := awsConfig.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("eks connector: config load failure: %w", err)
 	}
 
+	if cfg.ExternalId == "" && cfg.EksAccessKey != "" && cfg.EksSecretAccessKey != "" {
+		baseConfig, err = getOnPremAWSConfig(ctx, cfg, httpClient)
+		if err != nil {
+			return nil, fmt.Errorf("eks connector: config load failure: %w", err)
+		}
+	}
+
 	newConnector := &Connector{
-		baseConfig:              baseConfig.Copy(),
-		baseClient:              httpClient,
-		globalRegion:            config.GlobalRegion,
-		region:                  config.Region,
-		roleARN:                 config.RoleARN,
-		externalID:              config.ExternalID,
-		globalBindingExternalID: config.GlobalBindingExternalID,
-		globalRoleARN:           config.GlobalRoleARN,
-		globalAccessKeyID:       config.GlobalAccessKeyID,
-		globalSecretAccessKey:   config.GlobalSecretAccessKey,
-		_onceCallingConfig:      map[string]*sync.Once{},
-		_callingConfig:          map[string]awsSdk.Config{},
-		_callingConfigError:     map[string]error{},
+		awsConfig:           baseConfig.Copy(),
+		baseClient:          httpClient,
+		config:              cfg,
+		_onceCallingConfig:  map[string]*sync.Once{},
+		_callingConfig:      map[string]awsSdk.Config{},
+		_callingConfigError: map[string]error{},
 	}
 
 	connectorOpts := k8s.WithSyncResources([]string{
@@ -135,14 +118,14 @@ func New(
 	}
 
 	// Get EKS cluster configuration
-	eksCfg, err := getEKSClusterCfg(ctx, eksSDKClient, config.Region, config.ClusterName)
+	eksCfg, err := getEKSClusterCfg(ctx, eksSDKClient, cfg.EksRegion, cfg.EksClusterName)
 	if err != nil {
 		l.Error("failed to get EKS cluster config", zap.Error(err))
 		return nil, err
 	}
 
 	// Get the AWS config with assumed role credentials for token generation
-	callingConfig, err := newConnector.getCallingConfig(ctx, config.Region)
+	callingConfig, err := newConnector.getCallingConfig(ctx, cfg.EksRegion)
 	if err != nil {
 		l.Error("failed to get calling config", zap.Error(err))
 		return nil, err
@@ -154,7 +137,7 @@ func New(
 		return nil, err
 	}
 
-	eksClient, err := client.NewEKSClient(restConfig, iamClient, eksSDKClient, config.ClusterName)
+	eksClient, err := client.NewEKSClient(restConfig, iamClient, eksSDKClient, cfg.EksClusterName)
 	if err != nil {
 		l.Error("error creating EKS client", zap.Error(err))
 		return nil, err
@@ -181,20 +164,20 @@ func New(
 	return newConnector, nil
 }
 
-func GetAwsConfigOptions(httpClient *http.Client, config Config) []func(*awsConfig.LoadOptions) error {
+func GetAwsConfigOptions(httpClient *http.Client, cfg *config.Eks) []func(*awsConfig.LoadOptions) error {
 	opts := []func(*awsConfig.LoadOptions) error{
 		awsConfig.WithHTTPClient(httpClient),
-		awsConfig.WithRegion(config.GlobalRegion),
+		awsConfig.WithRegion(cfg.GlobalRegion),
 		awsConfig.WithDefaultsMode(awsSdk.DefaultsModeInRegion),
 	}
 	// Either we have an access key directly into our binding account, or we use
 	// instance identity to swap into that role.
-	if config.GlobalAccessKeyID != "" && config.GlobalSecretAccessKey != "" {
+	if cfg.GlobalAccessKeyId != "" && cfg.GlobalSecretAccessKey != "" {
 		opts = append(opts,
 			awsConfig.WithCredentialsProvider(
 				credentials.NewStaticCredentialsProvider(
-					config.GlobalAccessKeyID,
-					config.GlobalSecretAccessKey,
+					cfg.GlobalAccessKeyId,
+					cfg.GlobalSecretAccessKey,
 					"",
 				),
 			),
@@ -210,16 +193,16 @@ func (o *Connector) getCallingConfig(ctx context.Context, region string) (awsSdk
 	}
 	o._onceCallingConfig[region].Do(func() {
 		o._callingConfig[region], o._callingConfigError[region] = func() (awsSdk.Config, error) {
-			if o.externalID == "" {
-				return o.baseConfig, nil
+			if o.config.ExternalId == "" {
+				return o.awsConfig, nil
 			}
 			l := ctxzap.Extract(ctx)
 			// ok, if we are an instance, we do the assumeRole twice, first time from our Instance role, INTO the binding account
 			// and from there, into the customer account.
-			stsSvc := sts.NewFromConfig(o.baseConfig)
-			bindingCreds := awsSdk.NewCredentialsCache(stscreds.NewAssumeRoleProvider(stsSvc, o.globalRoleARN, func(aro *stscreds.AssumeRoleOptions) {
-				if o.globalBindingExternalID != "" {
-					aro.ExternalID = awsSdk.String(o.globalBindingExternalID)
+			stsSvc := sts.NewFromConfig(o.awsConfig)
+			bindingCreds := awsSdk.NewCredentialsCache(stscreds.NewAssumeRoleProvider(stsSvc, o.config.GlobalRoleArn, func(aro *stscreds.AssumeRoleOptions) {
+				if o.config.GlobalBindingExternalId != "" {
+					aro.ExternalID = awsSdk.String(o.config.GlobalBindingExternalId)
 				}
 			}))
 
@@ -227,15 +210,15 @@ func (o *Connector) getCallingConfig(ctx context.Context, region string) (awsSdk
 			if err != nil {
 				l.Error("eks-connector: internal binding error",
 					zap.Error(err),
-					zap.String("binding_role_arn", o.globalRoleARN),
-					zap.String("binding_external_id", o.globalBindingExternalID),
+					zap.String("binding_role_arn", o.config.GlobalRoleArn),
+					zap.String("binding_external_id", o.config.GlobalBindingExternalId),
 				)
 				// we don't want to leak our assume role from our instance identity to a customer visible error
 				return awsSdk.Config{}, fmt.Errorf("eks-connector: internal binding error")
 			}
 
 			// ok, now we have a working binding credentials.... lets go.
-			stsConfig := o.baseConfig.Copy()
+			stsConfig := o.awsConfig.Copy()
 			stsConfig.Credentials = bindingCreds
 
 			callingSTSService := sts.NewFromConfig(stsConfig)
@@ -244,15 +227,15 @@ func (o *Connector) getCallingConfig(ctx context.Context, region string) (awsSdk
 				HTTPClient:   o.baseClient,
 				Region:       region,
 				DefaultsMode: awsSdk.DefaultsModeInRegion,
-				Credentials: awsSdk.NewCredentialsCache(stscreds.NewAssumeRoleProvider(callingSTSService, o.roleARN, func(aro *stscreds.AssumeRoleOptions) {
-					aro.ExternalID = awsSdk.String(o.externalID)
+				Credentials: awsSdk.NewCredentialsCache(stscreds.NewAssumeRoleProvider(callingSTSService, o.config.RoleArn, func(aro *stscreds.AssumeRoleOptions) {
+					aro.ExternalID = awsSdk.String(o.config.ExternalId)
 				})),
 			}
 
 			// this is ok, since the cache will keep them.  we want to centralize error handling for this.
 			_, err = callingConfig.Credentials.Retrieve(ctx)
 			if err != nil {
-				return awsSdk.Config{}, fmt.Errorf("eks-connector: unable to assume role into '%s/%s': %w", o.roleARN, o.externalID, err)
+				return awsSdk.Config{}, fmt.Errorf("eks-connector: unable to assume role into '%s/%s': %w", o.config.RoleArn, o.config.ExternalId, err)
 			}
 			return callingConfig, nil
 		}()
@@ -261,18 +244,40 @@ func (o *Connector) getCallingConfig(ctx context.Context, region string) (awsSdk
 }
 
 func (c *Connector) SetupClients(ctx context.Context) (*iam.Client, *eks.Client, error) {
-	globalCallingConfig, err := c.getCallingConfig(ctx, c.region)
+	callingConfig, err := c.getCallingConfig(ctx, c.config.EksRegion)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	iamClient := iam.NewFromConfig(globalCallingConfig)
-	// Use the specific region where the EKS cluster exists, not the global region
-	callingConfig, err := c.getCallingConfig(ctx, c.region)
-	if err != nil {
-		return nil, nil, err
-	}
+	iamClient := iam.NewFromConfig(callingConfig)
 	eksClient := eks.NewFromConfig(callingConfig)
 
 	return iamClient, eksClient, nil
+}
+
+func getOnPremAWSConfig(ctx context.Context, cfg *config.Eks, httpClient *http.Client) (awsSdk.Config, error) {
+	creds := awsSdk.NewCredentialsCache(
+		credentials.NewStaticCredentialsProvider(cfg.EksAccessKey, cfg.EksSecretAccessKey, ""),
+	)
+	baseCfg := awsSdk.Config{
+		Region:       cfg.EksRegion,
+		Credentials:  creds,
+		HTTPClient:   httpClient,
+		DefaultsMode: awsSdk.DefaultsModeInRegion,
+	}
+
+	// Step 2: Use STS to assume role
+	stsClient := sts.NewFromConfig(baseCfg)
+	assumedCreds := stscreds.NewAssumeRoleProvider(stsClient, cfg.RoleArn)
+
+	roleCfg := awsSdk.Config{
+		Region:      baseCfg.Region,
+		Credentials: awsSdk.NewCredentialsCache(assumedCreds),
+	}
+	// End aws authentication
+	_, err := roleCfg.Credentials.Retrieve(ctx)
+	if err != nil {
+		return awsSdk.Config{}, fmt.Errorf("eks-connector: unable to assume role into '%s': %w", cfg.RoleArn, err)
+	}
+
+	return roleCfg, nil
 }

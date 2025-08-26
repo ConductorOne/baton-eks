@@ -1,7 +1,6 @@
 package connector
 
 import (
-	"context"
 	"testing"
 
 	"github.com/conductorone/baton-eks/pkg/client"
@@ -16,7 +15,7 @@ func TestIAMRoleBuilder_ResourceType(t *testing.T) {
 	builder := NewIAMRoleBuilder(eksClient)
 
 	// Test resource type
-	resourceType := builder.ResourceType(context.Background())
+	resourceType := builder.ResourceType(t.Context())
 
 	assert.NotNil(t, resourceType)
 	assert.Equal(t, "iam_role", resourceType.Id)

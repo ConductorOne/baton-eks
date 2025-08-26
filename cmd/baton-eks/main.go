@@ -9,8 +9,8 @@ import (
 
 	eksCon "github.com/conductorone/baton-eks/pkg/connector"
 
-	cfg "github.com/conductorone/baton-eks/pkg/config"
-	"github.com/conductorone/baton-sdk/pkg/config"
+	"github.com/conductorone/baton-eks/pkg/config"
+	sdkCfg "github.com/conductorone/baton-sdk/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/field"
 	"github.com/conductorone/baton-sdk/pkg/types"
@@ -23,11 +23,11 @@ var version = "dev"
 func main() {
 	ctx := context.Background()
 
-	_, cmd, err := config.DefineConfiguration(
+	_, cmd, err := sdkCfg.DefineConfiguration(
 		ctx,
 		"baton-eks",
-		getConnector[*cfg.Eks],
-		cfg.Config,
+		getConnector[*config.Eks],
+		config.Config,
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -43,25 +43,13 @@ func main() {
 	}
 }
 
-func getConnector[T field.Configurable](ctx context.Context, config *cfg.Eks) (types.ConnectorServer, error) {
+func getConnector[T field.Configurable](ctx context.Context, cfg *config.Eks) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
-	if err := field.Validate(cfg.Config, config); err != nil {
+	if err := field.Validate(config.Config, cfg); err != nil {
 		return nil, err
 	}
 
-	eksConfig := eksCon.Config{
-		GlobalAccessKeyID:       config.GlobalAccessKeyId,
-		GlobalSecretAccessKey:   config.GlobalSecretAccessKey,
-		GlobalRegion:            config.GlobalRegion,
-		GlobalRoleARN:           config.GlobalRoleArn,
-		ExternalID:              config.ExternalId,
-		RoleARN:                 config.RoleArn,
-		ClusterName:             config.EksClusterName,
-		GlobalBindingExternalID: config.GlobalBindingExternalId,
-		Region:                  config.EksRegion,
-	}
-
-	eksConnector, err := eksCon.New(ctx, eksConfig)
+	eksConnector, err := eksCon.New(ctx, cfg)
 	if err != nil {
 		l.Error("error creating EKS connector", zap.Error(err))
 		return nil, err
