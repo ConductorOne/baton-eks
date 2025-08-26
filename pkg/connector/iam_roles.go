@@ -108,17 +108,17 @@ func (i *iamRoleBuilder) roleResource(role *client.IAMRole) (*v2.Resource, error
 
 // Entitlements returns entitlements for IAM Role resources.
 func (i *iamRoleBuilder) Entitlements(ctx context.Context, resource *v2.Resource, pToken *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	assumesEnt := entitlement.NewAssignmentEntitlement(
+	assigmentEnt := entitlement.NewAssignmentEntitlement(
 		resource,
-		"assumes",
-		entitlement.WithDisplayName(fmt.Sprintf("%s IAM Role", resource.DisplayName)),
-		entitlement.WithDescription(fmt.Sprintf("Grants allow assume to the %s IAM role", resource.DisplayName)),
+		"assignment",
+		entitlement.WithDisplayName(fmt.Sprintf("%s Role", resource.DisplayName)),
+		entitlement.WithDescription(fmt.Sprintf("Can assume the %s role in AWS", resource.DisplayName)),
 		entitlement.WithGrantableTo(
 			ResourceTypeIAMUser,
 		),
 	)
 
-	return []*v2.Entitlement{assumesEnt}, "", nil, nil
+	return []*v2.Entitlement{assigmentEnt}, "", nil, nil
 }
 
 // Grants returns permission grants for IAM Role resources.
@@ -163,7 +163,7 @@ func (i *iamRoleBuilder) Grants(ctx context.Context, resource *v2.Resource, pTok
 			principalResource := k8s.GenerateResourceForGrant(principal, ResourceTypeIAMUser.Id)
 			g := grant.NewGrant(
 				resource,
-				"assumes",
+				"assignment",
 				principalResource,
 			)
 			rv = append(rv, g)

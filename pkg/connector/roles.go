@@ -32,7 +32,8 @@ type roleBuilder struct {
 
 // ResourceType returns the resource type for Role.
 func (r *roleBuilder) ResourceType(ctx context.Context) *v2.ResourceType {
-	return k8s.ResourceTypeRole
+	// Renamed to avoid overlapping with IAM Role
+	return ResourceTypeNamespaceRole
 }
 
 // List fetches all Roles from the Kubernetes API.
@@ -113,7 +114,7 @@ func roleResource(role *rbacv1.Role) (*v2.Resource, error) {
 	// Create resource as a role with parent namespace
 	resource, err := rs.NewRoleResource(
 		role.Name,
-		k8s.ResourceTypeRole,
+		ResourceTypeNamespaceRole,
 		rawID, // Pass the raw ID directly
 		[]rs.RoleTraitOption{rs.WithRoleProfile(profile)},
 		rs.WithParentResourceID(parentID),

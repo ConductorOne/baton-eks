@@ -32,7 +32,7 @@ func processGrants(matchingARNs []string, resource *v2.Resource, entID string) [
 				resourceType = ResourceTypeIAMRole
 				grantExpandable := &v2.GrantExpandable{
 					EntitlementIds: []string{
-						fmt.Sprintf("iam_role:%s:assumes", principalARN),
+						fmt.Sprintf("role:%s:assignment", principalARN),
 					},
 				}
 				grantOpts = append(grantOpts, grant.WithAnnotation(grantExpandable))

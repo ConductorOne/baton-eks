@@ -128,7 +128,7 @@ func (p *accessPolicyBuilder) Grants(ctx context.Context, resource *v2.Resource,
 			principalResource := k8s.GenerateResourceForGrant(principalARN, ResourceTypeIAMRole.Id)
 			grantExpandable := &v2.GrantExpandable{
 				EntitlementIds: []string{
-					fmt.Sprintf("iam_role:%s:assumes", principalARN),
+					fmt.Sprintf("role:%s:assignment", principalARN),
 				},
 			}
 			grantOpts = append(grantOpts, grant.WithAnnotation(grantExpandable))
