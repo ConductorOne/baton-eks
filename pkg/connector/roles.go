@@ -25,9 +25,9 @@ const roleEntitlementMember = "member"
 
 // roleBuilder syncs Kubernetes Roles as Baton resources.
 type roleBuilder struct {
-	client               kubernetes.Interface
-	bindingProvider      k8s.RoleBindingProvider
-	userMappingsProvider *client.EKSClient
+	client          kubernetes.Interface
+	bindingProvider k8s.RoleBindingProvider
+	eksService      *client.EKSClient
 }
 
 // ResourceType returns the resource type for Role.
@@ -203,12 +203,12 @@ func (r *roleBuilder) Grants(ctx context.Context, resource *v2.Resource, _ *pagi
 				var matchingARNs []string
 				switch subject.Kind {
 				case k8s.SubjectKindGroup:
-					matchingARNs, err = r.userMappingsProvider.LookupArnsByGroup(ctx, subject.Name)
+					matchingARNs, err = r.eksService.LookupArnsByGroup(ctx, subject.Name)
 					if err != nil {
 						return nil, "", nil, fmt.Errorf("failed to lookup ARNs for group %s: %w", subject.Name, err)
 					}
 				case k8s.SubjectKindUser:
-					matchingARNs, err = r.userMappingsProvider.LookupArnsByUsername(ctx, subject.Name)
+					matchingARNs, err = r.eksService.LookupArnsByUsername(ctx, subject.Name)
 					if err != nil {
 						return nil, "", nil, fmt.Errorf("failed to lookup ARNs for user %s: %w", subject.Name, err)
 					}
@@ -224,8 +224,8 @@ func (r *roleBuilder) Grants(ctx context.Context, resource *v2.Resource, _ *pagi
 // newRoleBuilder creates a new role builder.
 func NewRoleBuilder(client kubernetes.Interface, bindingProvider k8s.RoleBindingProvider, provider *client.EKSClient) *roleBuilder {
 	return &roleBuilder{
-		client:               client,
-		bindingProvider:      bindingProvider,
-		userMappingsProvider: provider,
+		client:          client,
+		bindingProvider: bindingProvider,
+		eksService:      provider,
 	}
 }

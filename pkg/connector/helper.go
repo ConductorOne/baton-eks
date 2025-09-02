@@ -141,3 +141,16 @@ func validatePEMCertificate(caData []byte) error {
 	}
 	return nil
 }
+
+func getNamespaceFromEntitlementID(entitlementID string) (string, error) {
+	var namespace string
+	if !strings.Contains(entitlementID, clusterScopedMember) {
+		// Namespace-scoped entitlement
+		parts := strings.Split(entitlementID, ":")
+		if len(parts) < 4 {
+			return "", fmt.Errorf("invalid namespace-scoped entitlement ID format: %s", entitlementID)
+		}
+		namespace = parts[len(parts)-2]
+	}
+	return namespace, nil
+}
