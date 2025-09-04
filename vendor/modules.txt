@@ -217,7 +217,7 @@ github.com/cenkalti/backoff/v4
 # github.com/cespare/xxhash/v2 v2.3.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/conductorone/baton-kubernetes v0.0.2
+# github.com/conductorone/baton-kubernetes v0.0.5
 ## explicit; go 1.24
 github.com/conductorone/baton-kubernetes/pkg/connector
 # github.com/conductorone/baton-sdk v0.3.35
