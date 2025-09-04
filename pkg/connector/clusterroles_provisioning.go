@@ -29,24 +29,11 @@ func (c *clusterRoleBuilder) Grant(ctx context.Context, principal *v2.Resource, 
 		return nil, fmt.Errorf("invalid entitlement ID")
 	}
 
-	if principal.Id.ResourceType == ResourceTypeIAMUser.Id {
-		iamUserMap, err := c.eksService.GetMapUserFromAWSAuthConfigMap(ctx, principal.Id.Resource)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get map user from aws-auth ConfigMap: %w", err)
-		}
-		if iamUserMap == nil {
-			// There is no mapping for this user. We create a new mapping.
-			err = c.eksService.AddIAMUserMapping(ctx, principal.Id.Resource)
-			if err != nil {
-				return nil, fmt.Errorf("failed to add IAM user mapping: %w", err)
-			}
-			username = principal.Id.Resource // For new users we use the ARN as the username
-		} else {
-			username = iamUserMap.Username
-		}
-	} else {
-		return nil, fmt.Errorf("principal type %s is not supported", principal.Id.ResourceType)
+	username, err = getOrCreateUsername(ctx, c.eksService, principal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get or create username: %w", err)
 	}
+
 	// Determine if this is a cluster-scoped or namespace-scoped entitlement
 	namespace, err := getNamespaceFromEntitlementID(entitlementID)
 	if err != nil {
@@ -61,8 +48,13 @@ func (c *clusterRoleBuilder) Grant(ctx context.Context, principal *v2.Resource, 
 			return nil, fmt.Errorf("failed to handle cluster role binding: %w", err)
 		}
 	} else {
+		clusterRoleName := entitlement.Resource.Id.Resource
+		matchingRoleBindings, _, err := c.bindingProvider.GetMatchingBindingsForClusterRole(ctx, clusterRoleName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get matching bindings: %w", err)
+		}
 		// Namespace-scoped binding
-		annotations, err = c.handleRoleBinding(ctx, entitlement, namespace, username)
+		annotations, err = handleRoleBinding(ctx, c.eksService, namespace, username, "ClusterRole", matchingRoleBindings, clusterRoleName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to handle role binding: %w", err)
 		}
@@ -123,67 +115,6 @@ func (c *clusterRoleBuilder) createClusterRoleBinding(ctx context.Context, clust
 	err := c.eksService.CreateClusterRoleBinding(ctx, bindingName, clusterRoleName, subjects)
 	if err != nil {
 		return fmt.Errorf("failed to create cluster role binding: %w", err)
-	}
-	return nil
-}
-
-func (c *clusterRoleBuilder) handleRoleBinding(ctx context.Context, entitlement *v2.Entitlement, namespace string, username string) (annotations.Annotations, error) {
-	clusterRoleName := entitlement.Resource.Id.Resource
-	bindingName := fmt.Sprintf("baton-%s-%s-binding", clusterRoleName, namespace)
-	matchingRoleBindings, _, err := c.bindingProvider.GetMatchingBindingsForClusterRole(ctx, clusterRoleName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get matching bindings: %w", err)
-	}
-
-	if len(matchingRoleBindings) > 0 {
-		var bindingToUpdate *rbacv1.RoleBinding
-		for _, binding := range matchingRoleBindings {
-			if binding.Name == bindingName {
-				bindingToUpdate = &binding
-			}
-			if userAlreadyHasAccess(binding.Subjects, username) {
-				return annotations.New(&v2.GrantAlreadyExists{}), nil
-			}
-		}
-		if bindingToUpdate != nil {
-			bindingToUpdate.Subjects = append(bindingToUpdate.Subjects, rbacv1.Subject{
-				Kind:     "User",
-				Name:     username,
-				APIGroup: rbacv1.GroupName,
-			})
-			err = c.eksService.UpdateRoleBinding(ctx, bindingToUpdate)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update cluster role binding: %w", err)
-			}
-			return nil, nil
-		}
-	}
-	// Binding doesn't exist, create a new binding.
-	err = c.createRoleBinding(ctx, namespace, clusterRoleName, username)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create role binding: %w", err)
-	}
-
-	return nil, nil
-}
-
-func (c *clusterRoleBuilder) createRoleBinding(ctx context.Context, namespace string, clusterRoleName string, subjectName string) error {
-	bindingName := fmt.Sprintf("baton-%s-%s-binding", clusterRoleName, namespace)
-	subjects := []rbacv1.Subject{
-		{
-			Kind:     "User",
-			Name:     subjectName,
-			APIGroup: rbacv1.GroupName,
-		},
-	}
-	roleRef := rbacv1.RoleRef{
-		Kind:     "ClusterRole",
-		Name:     clusterRoleName,
-		APIGroup: rbacv1.GroupName,
-	}
-	err := c.eksService.CreateRoleBinding(ctx, namespace, bindingName, roleRef, subjects)
-	if err != nil {
-		return fmt.Errorf("failed to create role binding: %w", err)
 	}
 	return nil
 }
@@ -279,25 +210,9 @@ func (c *clusterRoleBuilder) revokeClusterRoleBinding(ctx context.Context, clust
 
 // revokeRoleBinding removes a subject from a RoleBinding.
 func (c *clusterRoleBuilder) revokeRoleBinding(ctx context.Context, clusterRoleName string, namespace string, username string) (annotations.Annotations, error) {
-	l := ctxzap.Extract(ctx)
-
 	matchingRoleBindings, _, err := c.bindingProvider.GetMatchingBindingsForClusterRole(ctx, clusterRoleName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get matching bindings: %w", err)
 	}
-	bindingToUpdate := getExistingBindingForUser(matchingRoleBindings, username)
-	if bindingToUpdate == nil {
-		l.Debug("no matching cluster role binding found, returning GrantAlreadyRevoked",
-			zap.String("cluster_role", clusterRoleName),
-			zap.String("principal", username),
-		)
-		return annotations.New(&v2.GrantAlreadyRevoked{}), nil
-	}
-	newSubjects := filterSubjects(bindingToUpdate.Subjects, username)
-	err = handleBindingUpdateOrDelete(ctx, c.eksService, bindingToUpdate, newSubjects, namespace)
-	if err != nil {
-		return nil, fmt.Errorf("failed to handle role binding update/delete for cluster role %s in namespace %s: %w", clusterRoleName, namespace, err)
-	}
-
-	return nil, nil
+	return handleRevokeRoleBinding(ctx, c.eksService, namespace, username, matchingRoleBindings, clusterRoleName)
 }

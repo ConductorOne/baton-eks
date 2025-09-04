@@ -458,6 +458,13 @@ func (c *EKSClient) AddIAMUserMapping(ctx context.Context, userArn string) error
 	if usersYaml, ok := configMap.Data["mapUsers"]; ok && strings.TrimSpace(usersYaml) != "" {
 		var iamUsers []mapUser
 		if err := yaml.Unmarshal([]byte(usersYaml), &iamUsers); err == nil {
+			// Check if the user already exists
+			for _, iamUser := range iamUsers {
+				if iamUser.UserARN == userArn {
+					return fmt.Errorf("user %s already exists", userArn)
+				}
+			}
+			// If the user does not exist, add it
 			iamUsers = append(iamUsers, mapUser{
 				UserARN:  userArn,
 				Username: userArn,
@@ -474,10 +481,11 @@ func (c *EKSClient) AddIAMUserMapping(ctx context.Context, userArn string) error
 				l.Error("failed to update aws-auth ConfigMap", zap.Error(err))
 				return fmt.Errorf("failed to update aws-auth ConfigMap: %w", err)
 			}
+			return nil
 		}
 	}
 
-	return nil
+	return fmt.Errorf("failed to add IAM user mapping, error unmarshalling mapUsers")
 }
 
 func (c *EKSClient) CreateClusterRoleBinding(ctx context.Context, bindingName string, clusterRoleName string, subjects []rbacv1.Subject) error {
