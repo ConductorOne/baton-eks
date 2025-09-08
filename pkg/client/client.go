@@ -14,6 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -32,6 +34,11 @@ type EKSClient struct {
 	identityMutex  sync.Mutex
 	idCacheExpiry  time.Time
 }
+
+const (
+	awsAuthConfigMapNamespace = "kube-system"
+	awsAuthConfigMapName      = "aws-auth"
+)
 
 func NewClient(cfg *rest.Config, awsCfg aws.Config, clusterName string) (*EKSClient, error) {
 	// Create kubernetes client
@@ -416,4 +423,156 @@ func extractPrincipalValues(principal interface{}) []string {
 		}
 	}
 	return values
+}
+
+// GetMapUserFromAWSAuthConfigMap gets the aws-auth configmap for IAM users.
+func (c *EKSClient) GetMapUserFromAWSAuthConfigMap(ctx context.Context, userArn string) (*mapUser, error) {
+	l := ctxzap.Extract(ctx)
+	configMap, err := c.kubernetes.CoreV1().ConfigMaps(awsAuthConfigMapNamespace).Get(ctx, awsAuthConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		l.Error("failed to get aws-auth ConfigMap", zap.Error(err))
+		return nil, fmt.Errorf("failed to get aws-auth ConfigMap: %w", err)
+	}
+
+	if usersYaml, ok := configMap.Data["mapUsers"]; ok && strings.TrimSpace(usersYaml) != "" {
+		var iamUsers []mapUser
+		if err := yaml.Unmarshal([]byte(usersYaml), &iamUsers); err == nil {
+			for _, iamUser := range iamUsers {
+				if iamUser.UserARN != "" && iamUser.UserARN == userArn {
+					return &iamUser, nil
+				}
+			}
+		}
+	}
+	return nil, nil
+}
+
+func (c *EKSClient) AddIAMUserMapping(ctx context.Context, userArn string) error {
+	l := ctxzap.Extract(ctx)
+	configMap, err := c.kubernetes.CoreV1().ConfigMaps(awsAuthConfigMapNamespace).Get(ctx, awsAuthConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		l.Error("failed to get aws-auth ConfigMap", zap.Error(err))
+		return fmt.Errorf("failed to get aws-auth ConfigMap: %w", err)
+	}
+
+	if usersYaml, ok := configMap.Data["mapUsers"]; ok && strings.TrimSpace(usersYaml) != "" {
+		var iamUsers []mapUser
+		if err := yaml.Unmarshal([]byte(usersYaml), &iamUsers); err == nil {
+			// Check if the user already exists
+			for _, iamUser := range iamUsers {
+				if iamUser.UserARN == userArn {
+					return fmt.Errorf("user %s already exists", userArn)
+				}
+			}
+			// If the user does not exist, add it
+			iamUsers = append(iamUsers, mapUser{
+				UserARN:  userArn,
+				Username: userArn,
+				Groups:   []string{},
+			})
+			updated, err := yaml.Marshal(iamUsers)
+			if err != nil {
+				l.Error("failed to marshal updated mapUsers YAML", zap.Error(err))
+				return fmt.Errorf("failed to marshal updated mapUsers YAML: %w", err)
+			}
+			configMap.Data["mapUsers"] = string(updated)
+			_, err = c.kubernetes.CoreV1().ConfigMaps(awsAuthConfigMapNamespace).Update(ctx, configMap, metav1.UpdateOptions{})
+			if err != nil {
+				l.Error("failed to update aws-auth ConfigMap", zap.Error(err))
+				return fmt.Errorf("failed to update aws-auth ConfigMap: %w", err)
+			}
+			return nil
+		}
+	}
+
+	return fmt.Errorf("failed to add IAM user mapping, error unmarshalling mapUsers")
+}
+
+func (c *EKSClient) CreateClusterRoleBinding(ctx context.Context, bindingName string, clusterRoleName string, subjects []rbacv1.Subject) error {
+	l := ctxzap.Extract(ctx)
+	newBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: bindingName,
+		},
+		Subjects: subjects,
+		RoleRef: rbacv1.RoleRef{
+			Kind:     "ClusterRole",
+			Name:     clusterRoleName,
+			APIGroup: rbacv1.GroupName,
+		},
+	}
+
+	_, err := c.kubernetes.RbacV1().ClusterRoleBindings().Create(ctx, newBinding, metav1.CreateOptions{})
+	if err != nil {
+		l.Error("failed to create ClusterRoleBinding", zap.Error(err))
+		return fmt.Errorf("failed to create ClusterRoleBinding: %w", err)
+	}
+	return nil
+}
+
+func (c *EKSClient) CreateRoleBinding(ctx context.Context, namespace string, bindingName string, roleRef rbacv1.RoleRef, subjects []rbacv1.Subject) error {
+	l := ctxzap.Extract(ctx)
+	newBinding := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bindingName,
+			Namespace: namespace,
+		},
+		Subjects: subjects,
+		RoleRef:  roleRef,
+	}
+
+	_, createErr := c.kubernetes.RbacV1().RoleBindings(namespace).Create(ctx, newBinding, metav1.CreateOptions{})
+	if createErr != nil {
+		l.Error("failed to create RoleBinding", zap.Error(createErr))
+		return fmt.Errorf("failed to create RoleBinding: %w", createErr)
+	}
+	return nil
+}
+
+func (c *EKSClient) UpdateClusterRoleBinding(ctx context.Context, binding *rbacv1.ClusterRoleBinding) error {
+	l := ctxzap.Extract(ctx)
+	_, err := c.kubernetes.RbacV1().ClusterRoleBindings().Update(ctx, binding, metav1.UpdateOptions{})
+	if err != nil {
+		l.Error("failed to update ClusterRoleBinding", zap.Error(err))
+		return fmt.Errorf("failed to update ClusterRoleBinding: %w", err)
+	}
+	return nil
+}
+
+func (c *EKSClient) UpdateRoleBinding(ctx context.Context, binding *rbacv1.RoleBinding) error {
+	l := ctxzap.Extract(ctx)
+	_, err := c.kubernetes.RbacV1().RoleBindings(binding.Namespace).Update(ctx, binding, metav1.UpdateOptions{})
+	if err != nil {
+		l.Error("failed to update RoleBinding", zap.Error(err))
+		return fmt.Errorf("failed to update RoleBinding: %w", err)
+	}
+	return nil
+}
+
+func (c *EKSClient) DeleteClusterRoleBinding(ctx context.Context, bindingName string) error {
+	l := ctxzap.Extract(ctx)
+	err := c.kubernetes.RbacV1().ClusterRoleBindings().Delete(ctx, bindingName, metav1.DeleteOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// Already deleted, nothing to do
+			return nil
+		}
+		l.Error("failed to delete ClusterRoleBinding", zap.Error(err))
+		return fmt.Errorf("failed to delete ClusterRoleBinding: %w", err)
+	}
+	return nil
+}
+
+func (c *EKSClient) DeleteRoleBinding(ctx context.Context, namespace, bindingName string) error {
+	l := ctxzap.Extract(ctx)
+	err := c.kubernetes.RbacV1().RoleBindings(namespace).Delete(ctx, bindingName, metav1.DeleteOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// Already deleted, nothing to do
+			return nil
+		}
+		l.Error("failed to delete RoleBinding", zap.Error(err))
+		return fmt.Errorf("failed to delete RoleBinding: %w", err)
+	}
+	return nil
 }

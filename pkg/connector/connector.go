@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/conductorone/baton-eks/pkg/client"
+	"github.com/conductorone/baton-eks/pkg/config"
 	k8s "github.com/conductorone/baton-kubernetes/pkg/connector"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -23,8 +24,6 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
-
-	"github.com/conductorone/baton-eks/pkg/config"
 )
 
 type Connector struct {

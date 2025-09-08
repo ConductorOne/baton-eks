@@ -32,10 +32,10 @@ type clusterRoleBuilder struct {
 	client          kubernetes.Interface
 	bindingProvider k8s.ClusterRoleBindingProvider
 	// Cached namespaces
-	cachedNamespaces     []string
-	nsMutex              sync.Mutex
-	nsCacheExpiry        time.Time
-	userMappingsProvider *client.EKSClient
+	cachedNamespaces []string
+	nsMutex          sync.Mutex
+	nsCacheExpiry    time.Time
+	eksService       *client.EKSClient
 }
 
 // ResourceType returns the resource type for ClusterRole.
@@ -138,6 +138,7 @@ func (c *clusterRoleBuilder) Entitlements(ctx context.Context, resource *v2.Reso
 			k8s.ResourceTypeServiceAccount,
 			k8s.ResourceTypeGroup,
 			k8s.ResourceTypeUser,
+			ResourceTypeIAMRole,
 		),
 	)
 	entitlements = append(entitlements, memberEnt)
@@ -160,6 +161,7 @@ func (c *clusterRoleBuilder) Entitlements(ctx context.Context, resource *v2.Reso
 				k8s.ResourceTypeServiceAccount,
 				k8s.ResourceTypeGroup,
 				k8s.ResourceTypeUser,
+				ResourceTypeIAMRole,
 			),
 		)
 		entitlements = append(entitlements, nsEnt)
@@ -209,12 +211,12 @@ func (c *clusterRoleBuilder) Grants(ctx context.Context, resource *v2.Resource, 
 				var matchingARNs []string
 				switch subject.Kind {
 				case k8s.SubjectKindGroup:
-					matchingARNs, err = c.userMappingsProvider.LookupArnsByGroup(ctx, subject.Name)
+					matchingARNs, err = c.eksService.LookupArnsByGroup(ctx, subject.Name)
 					if err != nil {
 						return nil, "", nil, fmt.Errorf("failed to lookup ARNs for group %s: %w", subject.Name, err)
 					}
 				case k8s.SubjectKindUser:
-					matchingARNs, err = c.userMappingsProvider.LookupArnsByUsername(ctx, subject.Name)
+					matchingARNs, err = c.eksService.LookupArnsByUsername(ctx, subject.Name)
 					if err != nil {
 						return nil, "", nil, fmt.Errorf("failed to lookup ARNs for user %s: %w", subject.Name, err)
 					}
@@ -246,12 +248,12 @@ func (c *clusterRoleBuilder) Grants(ctx context.Context, resource *v2.Resource, 
 				var matchingARNs []string
 				switch subject.Kind {
 				case k8s.SubjectKindGroup:
-					matchingARNs, err = c.userMappingsProvider.LookupArnsByGroup(ctx, subject.Name)
+					matchingARNs, err = c.eksService.LookupArnsByGroup(ctx, subject.Name)
 					if err != nil {
 						return nil, "", nil, fmt.Errorf("failed to lookup ARNs for group %s: %w", subject.Name, err)
 					}
 				case k8s.SubjectKindUser:
-					matchingARNs, err = c.userMappingsProvider.LookupArnsByUsername(ctx, subject.Name)
+					matchingARNs, err = c.eksService.LookupArnsByUsername(ctx, subject.Name)
 					if err != nil {
 						return nil, "", nil, fmt.Errorf("failed to lookup ARNs for user %s: %w", subject.Name, err)
 					}
@@ -303,8 +305,8 @@ func (c *clusterRoleBuilder) cacheNamespaces(ctx context.Context) error {
 // newClusterRoleBuilder creates a new cluster role builder.
 func NewClusterRoleBuilder(client kubernetes.Interface, bindingProvider k8s.ClusterRoleBindingProvider, provider *client.EKSClient) *clusterRoleBuilder {
 	return &clusterRoleBuilder{
-		client:               client,
-		bindingProvider:      bindingProvider,
-		userMappingsProvider: provider,
+		client:          client,
+		bindingProvider: bindingProvider,
+		eksService:      provider,
 	}
 }
