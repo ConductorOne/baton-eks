@@ -154,6 +154,14 @@ Under Permissions Policies, click Add Permissions and select Create Inline Polic
 }
 ```
 
+For Access Policies provisioning we additionally need the following permissions:
+
+```json
+"eks:CreateAccessEntry",
+"eks:AssociateAccessPolicy",
+"eks:DisassociateAccessPolicy",
+```
+
 #### For Service mode you we'll need access key and secret:
 To create AWS IAM user access key (includes both parts, access-key and secret-access-key) you can:
    1- In AWS management console,
@@ -303,6 +311,18 @@ And apply the yaml to the cluster
 
 ```bash
 kubectl apply -f reader-role-binding.yaml
+```
+
+For provisioning roles and cluster roles it might be necessary to edit the aws-auth configmap. Since this configmap lives in kube-system namespace special permissions are required. You need to be part of the system:masters group in Kubernetes. The members of this group have full administrative permissions over the entire cluster (including edit resources in the kube-system namespace where the aws-auth configmap resides). Note: The cluster creator is automatically added to this group.
+To add a role to the system:masters group you can follow the previously described steps to edit the configmap and add an entry in the mapRoles field.
+
+Example entry:
+
+```yaml
+- rolearn: arn:aws:iam::123456789012:role/your-admin-role
+  username: admin
+  groups:
+    - system:masters
 ```
 
 Keep in mind that cluster role binding may take some time to propagate in the cluster, be patient.

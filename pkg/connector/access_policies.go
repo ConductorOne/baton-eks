@@ -173,6 +173,47 @@ func (p *accessPolicyBuilder) Grants(ctx context.Context, resource *v2.Resource,
 	return rv, nextPageToken, nil, nil
 }
 
+func (a *accessPolicyBuilder) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
+	if principal.Id.ResourceType != ResourceTypeIAMUser.Id {
+		return nil, fmt.Errorf("principal is not an IAM user")
+	}
+	principalARN := principal.Id.Resource
+	policyARN := entitlement.Resource.Id.Resource
+	_, err := a.eksClient.CreateAccessEntry(ctx, principalARN)
+	if err != nil {
+		if !isAccessEntryAlreadyExistsError(err) {
+			return nil, fmt.Errorf("failed to create access entry: %w", err)
+		}
+	}
+	err = a.eksClient.AssociateAccessPolicy(ctx, principalARN, policyARN)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create policy association: %w", err)
+	}
+
+	return nil, nil
+}
+
+func isAccessEntryAlreadyExistsError(err error) bool {
+	// Check for specific AWS error types that indicate the access entry already exists
+	return strings.Contains(err.Error(), "already exists") ||
+		strings.Contains(err.Error(), "ResourceInUse") ||
+		strings.Contains(err.Error(), "Conflict")
+}
+
+func (a *accessPolicyBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
+	if grant.Principal.Id.ResourceType != ResourceTypeIAMUser.Id {
+		return nil, fmt.Errorf("principal is not an IAM user")
+	}
+
+	policyARN := grant.Entitlement.Resource.Id.Resource
+	principalARN := grant.Principal.Id.Resource
+	err := a.eksClient.DisassociateAccessPolicy(ctx, principalARN, policyARN)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
 // getStandardPolicies returns all standard EKS Access Policies.
 // Access policies are defined by EKS and cannot be created or modified by the user.
 // https://docs.aws.amazon.com/eks/latest/userguide/access-policy-permissions.html.
