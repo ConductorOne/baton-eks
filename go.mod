@@ -1,6 +1,6 @@
 module github.com/conductorone/baton-eks
 
-go 1.24.2
+go 1.25
 
 require (
 	github.com/aws/aws-sdk-go v1.55.7
@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.46.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0
 	github.com/conductorone/baton-kubernetes v0.0.5
-	github.com/conductorone/baton-sdk v0.3.35
+	github.com/conductorone/baton-sdk v0.3.54
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
