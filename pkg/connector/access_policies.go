@@ -106,8 +106,8 @@ func (a *accessPolicyBuilder) Entitlements(ctx context.Context, resource *v2.Res
 		nsEnt := entitlement.NewAssignmentEntitlement(
 			resource,
 			entitlementName,
-			entitlement.WithDisplayName(fmt.Sprintf("%s Access policy scoped to %s namespace", resource.DisplayName, ns.Name)),
-			entitlement.WithDescription(fmt.Sprintf("Grants assignmet to the %s Access policy in %s namespace", resource.DisplayName, ns.Name)),
+			entitlement.WithDisplayName(fmt.Sprintf("%s access policy scoped to '%s' namespace", resource.DisplayName, ns.Name)),
+			entitlement.WithDescription(fmt.Sprintf("Grants assignment to the %s access policy in namespace '%s'.", resource.DisplayName, ns.Name)),
 			entitlement.WithGrantableTo(
 				ResourceTypeIAMUser,
 				ResourceTypeIAMRole,
@@ -127,8 +127,8 @@ func (a *accessPolicyBuilder) Entitlements(ctx context.Context, resource *v2.Res
 	assignedEnt := entitlement.NewAssignmentEntitlement(
 		resource,
 		"assigned:cluster",
-		entitlement.WithDisplayName(fmt.Sprintf("%s Access policy cluster scoped", resource.DisplayName)),
-		entitlement.WithDescription(fmt.Sprintf("Grants assignmet to the %s Access policy for cluster", resource.DisplayName)),
+		entitlement.WithDisplayName(fmt.Sprintf("%s access policy (cluster scope)", resource.DisplayName)),
+		entitlement.WithDescription(fmt.Sprintf("Grants assignment to the %s access policy for the entire cluster.", resource.DisplayName)),
 		entitlement.WithGrantableTo(
 			ResourceTypeIAMUser,
 			ResourceTypeIAMRole,
@@ -201,7 +201,7 @@ func (a *accessPolicyBuilder) getPolicyScope(ctx context.Context, principalARN, 
 
 	// Find the specific policy we're looking for
 	for _, policy := range associatedPolicies {
-		if *policy.PolicyArn == policyARN {
+		if policy.PolicyArn != nil && *policy.PolicyArn == policyARN {
 			return policy.AccessScope, nil
 		}
 	}
