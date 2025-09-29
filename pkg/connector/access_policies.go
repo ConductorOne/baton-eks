@@ -426,10 +426,20 @@ func (a *accessPolicyBuilder) Revoke(ctx context.Context, grant *v2.Grant) (anno
 
 	err := a.eksClient.DisassociateAccessPolicy(ctx, principalARN, policyARN)
 	if err != nil {
+		if isAccessPolicyAssociationNotFoundError(err) {
+			return annotations.New(&v2.GrantAlreadyRevoked{}), nil
+		}
 		l.Error("failed to disassociate access policy", zap.Error(err))
 		return nil, err
 	}
 	return nil, nil
+}
+
+func isAccessPolicyAssociationNotFoundError(err error) bool {
+	var resourceNotFoundErr *eksTypes.ResourceNotFoundException
+
+	// Use errors.As to check for specific AWS SDK v2 error types
+	return errors.As(err, &resourceNotFoundErr)
 }
 
 // getStandardPolicies returns all standard EKS Access Policies.
