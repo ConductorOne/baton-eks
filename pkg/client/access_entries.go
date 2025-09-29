@@ -112,6 +112,27 @@ func (c *EKSClient) GetAccessEntriesWithPolicy(ctx context.Context, policyARN st
 	return principalARNs, page.NextToken, nil
 }
 
+// GetAssociatedAccessPolicies retrieves the associated access policies for a principal with their scopes.
+func (c *EKSClient) GetAssociatedAccessPolicies(ctx context.Context, principalARN string) ([]eksTypes.AssociatedAccessPolicy, error) {
+	var allPolicies []eksTypes.AssociatedAccessPolicy
+
+	input := &eks.ListAssociatedAccessPoliciesInput{
+		ClusterName:  aws.String(c.clusterName),
+		PrincipalArn: aws.String(principalARN),
+	}
+
+	paginator := eks.NewListAssociatedAccessPoliciesPaginator(c.eksClient, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list associated access policies: %w", err)
+		}
+		allPolicies = append(allPolicies, page.AssociatedAccessPolicies...)
+	}
+
+	return allPolicies, nil
+}
+
 func (c *EKSClient) CreateAccessEntry(ctx context.Context, principalARN string) (*eksTypes.AccessEntry, error) {
 	accessEntry, err := c.eksClient.CreateAccessEntry(ctx, &eks.CreateAccessEntryInput{
 		ClusterName:  aws.String(c.clusterName),
@@ -124,10 +145,8 @@ func (c *EKSClient) CreateAccessEntry(ctx context.Context, principalARN string) 
 	return accessEntry.AccessEntry, nil
 }
 
-func (c *EKSClient) AssociateAccessPolicy(ctx context.Context, principalARN string, policyARN string) error {
-	accessScope := &eksTypes.AccessScope{
-		Type: eksTypes.AccessScopeTypeCluster,
-	}
+// AssociateAccessPolicy associates an access policy with a specific scope.
+func (c *EKSClient) AssociateAccessPolicy(ctx context.Context, principalARN string, policyARN string, accessScope *eksTypes.AccessScope) error {
 	_, err := c.eksClient.AssociateAccessPolicy(ctx, &eks.AssociateAccessPolicyInput{
 		ClusterName:  aws.String(c.clusterName),
 		PrincipalArn: aws.String(principalARN),

@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -575,4 +576,12 @@ func (c *EKSClient) DeleteRoleBinding(ctx context.Context, namespace, bindingNam
 		return fmt.Errorf("failed to delete RoleBinding: %w", err)
 	}
 	return nil
+}
+
+func (c *EKSClient) ListNamespaces(ctx context.Context, opts metav1.ListOptions) (*corev1.NamespaceList, error) {
+	namespaces, err := c.kubernetes.CoreV1().Namespaces().List(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list namespaces: %w", err)
+	}
+	return namespaces, nil
 }
