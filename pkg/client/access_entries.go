@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 )
@@ -109,6 +110,65 @@ func (c *EKSClient) GetAccessEntriesWithPolicy(ctx context.Context, policyARN st
 	principalARNs = append(principalARNs, page.AccessEntries...)
 
 	return principalARNs, page.NextToken, nil
+}
+
+// GetAssociatedAccessPolicies retrieves the associated access policies for a principal with their scopes.
+func (c *EKSClient) GetAssociatedAccessPolicies(ctx context.Context, principalARN string) ([]eksTypes.AssociatedAccessPolicy, error) {
+	var allPolicies []eksTypes.AssociatedAccessPolicy
+
+	input := &eks.ListAssociatedAccessPoliciesInput{
+		ClusterName:  aws.String(c.clusterName),
+		PrincipalArn: aws.String(principalARN),
+	}
+
+	paginator := eks.NewListAssociatedAccessPoliciesPaginator(c.eksClient, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list associated access policies: %w", err)
+		}
+		allPolicies = append(allPolicies, page.AssociatedAccessPolicies...)
+	}
+
+	return allPolicies, nil
+}
+
+func (c *EKSClient) CreateAccessEntry(ctx context.Context, principalARN string) (*eksTypes.AccessEntry, error) {
+	accessEntry, err := c.eksClient.CreateAccessEntry(ctx, &eks.CreateAccessEntryInput{
+		ClusterName:  aws.String(c.clusterName),
+		PrincipalArn: aws.String(principalARN),
+		Type:         aws.String("STANDARD"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create access entry: %w", err)
+	}
+	return accessEntry.AccessEntry, nil
+}
+
+// AssociateAccessPolicy associates an access policy with a specific scope.
+func (c *EKSClient) AssociateAccessPolicy(ctx context.Context, principalARN string, policyARN string, accessScope *eksTypes.AccessScope) error {
+	_, err := c.eksClient.AssociateAccessPolicy(ctx, &eks.AssociateAccessPolicyInput{
+		ClusterName:  aws.String(c.clusterName),
+		PrincipalArn: aws.String(principalARN),
+		PolicyArn:    aws.String(policyARN),
+		AccessScope:  accessScope,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to associate access policy: %w", err)
+	}
+	return nil
+}
+
+func (c *EKSClient) DisassociateAccessPolicy(ctx context.Context, principalARN string, policyARN string) error {
+	_, err := c.eksClient.DisassociateAccessPolicy(ctx, &eks.DisassociateAccessPolicyInput{
+		ClusterName:  aws.String(c.clusterName),
+		PrincipalArn: aws.String(principalARN),
+		PolicyArn:    aws.String(policyARN),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to disassociate access policy: %w", err)
+	}
+	return nil
 }
 
 // isUserOrRoleArn checks if an ARN is for an IAM user or role.
