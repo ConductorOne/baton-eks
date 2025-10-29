@@ -68,8 +68,8 @@ github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UF
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
-github.com/conductorone/baton-kubernetes v0.0.5 h1:0Xnm4ugQJ/sDGwNoUbIIlEdnwF22CU6Z9RBRr+RjOUk=
-github.com/conductorone/baton-kubernetes v0.0.5/go.mod h1:wNdlRflZ1s5HeTdFPUBCcUr/nX1dU/yvNGIy9QwOhhA=
+github.com/conductorone/baton-kubernetes v0.0.6-0.20251029193359-5e799992f85f h1:J6NnpNk+lGKPgku7RiCXBi9qjZA15FG9bA2MB2eOSS8=
+github.com/conductorone/baton-kubernetes v0.0.6-0.20251029193359-5e799992f85f/go.mod h1:wNdlRflZ1s5HeTdFPUBCcUr/nX1dU/yvNGIy9QwOhhA=
 github.com/conductorone/baton-sdk v0.3.35 h1:8yzc1e/Dsmw5/a7zZcJklMeetjA7hRfD33zdD7WMHAs=
 github.com/conductorone/baton-sdk v0.3.35/go.mod h1:L55WO3ERMx1mfpjDgwK3jWNRGRF2E76WrQHmW6ev8VY=
 github.com/conductorone/dpop v0.2.4 h1:PaiDOX1gAIXtOJPxXf08GsGkpCuT/iECEjSJzLpi0zU=
