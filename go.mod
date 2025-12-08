@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.46.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0
 	github.com/conductorone/baton-kubernetes v0.0.6
-	github.com/conductorone/baton-sdk v0.5.6
+	github.com/conductorone/baton-sdk v0.6.5
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22

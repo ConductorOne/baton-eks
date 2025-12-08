@@ -223,7 +223,7 @@ github.com/cespare/xxhash/v2
 # github.com/conductorone/baton-kubernetes v0.0.6
 ## explicit; go 1.25.2
 github.com/conductorone/baton-kubernetes/pkg/connector
-# github.com/conductorone/baton-sdk v0.5.6
+# github.com/conductorone/baton-sdk v0.6.5
 ## explicit; go 1.25.2
 github.com/conductorone/baton-sdk/internal/connector
 github.com/conductorone/baton-sdk/pb/c1/c1z/v1
