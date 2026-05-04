@@ -9,8 +9,11 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/retry"
 	"github.com/conductorone/baton-sdk/pkg/types/tasks"
+	"github.com/conductorone/baton-sdk/pkg/uotel"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ResourceProvisioner extends ResourceSyncer to add capabilities for granting and revoking access.
@@ -44,7 +47,7 @@ type GrantProvisioner interface {
 // This is the recommended interface for implementing provisioning operations in new connectors.
 // It differs from ResourceProvisioner by returning a list of grants from the Grant method.
 type ResourceProvisionerV2 interface {
-	ResourceSyncer
+	ResourceSyncerV2
 	ResourceProvisionerV2Limited
 }
 
@@ -59,7 +62,8 @@ type GrantProvisionerV2 interface {
 
 func (b *builder) Grant(ctx context.Context, request *v2.GrantManagerServiceGrantRequest) (*v2.GrantManagerServiceGrantResponse, error) {
 	ctx, span := tracer.Start(ctx, "builder.Grant")
-	defer span.End()
+	var err error
+	defer func() { uotel.EndSpanWithError(span, err) }()
 
 	start := b.nowFunc()
 	tt := tasks.GrantType
@@ -71,8 +75,9 @@ func (b *builder) Grant(ctx context.Context, request *v2.GrantManagerServiceGran
 
 	if !ok {
 		l.Error("error: resource type does not have provisioner configured", zap.String("resource_type", rt))
-		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start))
-		return nil, fmt.Errorf("error: resource type does not have provisioner configured")
+		err := status.Errorf(codes.Unimplemented, "resource type %s does not have provisioner configured", rt)
+		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start), err)
+		return nil, err
 	}
 
 	retryer := retry.NewRetryer(ctx, retry.RetryConfig{
@@ -90,14 +95,15 @@ func (b *builder) Grant(ctx context.Context, request *v2.GrantManagerServiceGran
 		if retryer.ShouldWaitAndRetry(ctx, err) {
 			continue
 		}
-		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start))
+		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start), err)
 		return nil, fmt.Errorf("grant failed: %w", err)
 	}
 }
 
 func (b *builder) Revoke(ctx context.Context, request *v2.GrantManagerServiceRevokeRequest) (*v2.GrantManagerServiceRevokeResponse, error) {
 	ctx, span := tracer.Start(ctx, "builder.Revoke")
-	defer span.End()
+	var err error
+	defer func() { uotel.EndSpanWithError(span, err) }()
 
 	start := b.nowFunc()
 	tt := tasks.RevokeType
@@ -114,8 +120,9 @@ func (b *builder) Revoke(ctx context.Context, request *v2.GrantManagerServiceRev
 
 	if revokeProvisioner == nil {
 		l.Error("error: resource type does not have provisioner configured", zap.String("resource_type", rt))
-		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start))
-		return nil, fmt.Errorf("error: resource type does not have provisioner configured")
+		err := status.Errorf(codes.Unimplemented, "resource type %s does not have provisioner configured", rt)
+		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start), err)
+		return nil, err
 	}
 
 	retryer := retry.NewRetryer(ctx, retry.RetryConfig{
@@ -133,7 +140,7 @@ func (b *builder) Revoke(ctx context.Context, request *v2.GrantManagerServiceRev
 		if retryer.ShouldWaitAndRetry(ctx, err) {
 			continue
 		}
-		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start))
+		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start), err)
 		return nil, fmt.Errorf("revoke failed: %w", err)
 	}
 }

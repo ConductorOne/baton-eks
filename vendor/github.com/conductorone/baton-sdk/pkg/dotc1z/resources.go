@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/doug-martin/goqu/v9"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/uotel"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	reader_v2 "github.com/conductorone/baton-sdk/pb/c1/reader/v2"
@@ -60,21 +60,12 @@ func (r *resourcesTable) Migrations(ctx context.Context, db *goqu.Database) erro
 
 func (c *C1File) ListResources(ctx context.Context, request *v2.ResourcesServiceListResourcesRequest) (*v2.ResourcesServiceListResourcesResponse, error) {
 	ctx, span := tracer.Start(ctx, "C1File.ListResources")
-	defer span.End()
+	var err error
+	defer func() { uotel.EndSpanWithError(span, err) }()
 
-	objs, nextPageToken, err := c.listConnectorObjects(ctx, resources.Name(), request)
+	ret, nextPageToken, err := listConnectorObjects(ctx, c, resources.Name(), request, func() *v2.Resource { return &v2.Resource{} })
 	if err != nil {
 		return nil, fmt.Errorf("error listing resources: %w", err)
-	}
-
-	ret := make([]*v2.Resource, 0, len(objs))
-	for _, o := range objs {
-		rt := &v2.Resource{}
-		err = proto.Unmarshal(o, rt)
-		if err != nil {
-			return nil, err
-		}
-		ret = append(ret, rt)
 	}
 
 	return v2.ResourcesServiceListResourcesResponse_builder{
@@ -85,7 +76,8 @@ func (c *C1File) ListResources(ctx context.Context, request *v2.ResourcesService
 
 func (c *C1File) GetResource(ctx context.Context, request *reader_v2.ResourcesReaderServiceGetResourceRequest) (*reader_v2.ResourcesReaderServiceGetResourceResponse, error) {
 	ctx, span := tracer.Start(ctx, "C1File.GetResource")
-	defer span.End()
+	var err error
+	defer func() { uotel.EndSpanWithError(span, err) }()
 
 	ret := &v2.Resource{}
 	syncId, err := annotations.GetSyncIdFromAnnotations(request.GetAnnotations())
@@ -104,14 +96,16 @@ func (c *C1File) GetResource(ctx context.Context, request *reader_v2.ResourcesRe
 
 func (c *C1File) PutResources(ctx context.Context, resourceObjs ...*v2.Resource) error {
 	ctx, span := tracer.Start(ctx, "C1File.PutResources")
-	defer span.End()
+	var err error
+	defer func() { uotel.EndSpanWithError(span, err) }()
 
 	return c.putResourcesInternal(ctx, bulkPutConnectorObject, resourceObjs...)
 }
 
 func (c *C1File) PutResourcesIfNewer(ctx context.Context, resourceObjs ...*v2.Resource) error {
 	ctx, span := tracer.Start(ctx, "C1File.PutResourcesIfNewer")
-	defer span.End()
+	var err error
+	defer func() { uotel.EndSpanWithError(span, err) }()
 
 	return c.putResourcesInternal(ctx, bulkPutConnectorObjectIfNewer, resourceObjs...)
 }
@@ -119,6 +113,10 @@ func (c *C1File) PutResourcesIfNewer(ctx context.Context, resourceObjs ...*v2.Re
 type resourcePutFunc func(context.Context, *C1File, string, func(m *v2.Resource) (goqu.Record, error), ...*v2.Resource) error
 
 func (c *C1File) putResourcesInternal(ctx context.Context, f resourcePutFunc, resourceObjs ...*v2.Resource) error {
+	if c.readOnly {
+		return ErrReadOnly
+	}
+
 	err := f(ctx, c, resources.Name(),
 		func(resource *v2.Resource) (goqu.Record, error) {
 			fields := goqu.Record{
