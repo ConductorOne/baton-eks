@@ -24,6 +24,7 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 type Connector struct {
@@ -39,7 +40,10 @@ type Connector struct {
 
 // ResourceSyncers returns a ResourceSyncer for each resource type that should be synced from the upstream service.
 func (d *Connector) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
-	syncers := d.k8s.ResourceSyncers(ctx)
+	var syncers []connectorbuilder.ResourceSyncer
+	if d.k8s != nil {
+		syncers = append(syncers, d.k8s.ResourceSyncers(ctx)...)
+	}
 	syncers = append(syncers,
 		NewAccessPolicyBuilder(d.eksClient),
 		NewIAMRoleBuilder(d.eksClient),
@@ -65,6 +69,40 @@ func (d *Connector) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error)
 // to be sure that they are valid.
 func (d *Connector) Validate(ctx context.Context) (annotations.Annotations, error) {
 	return nil, nil
+}
+
+// NewDefault returns a credential-free instance of the connector used by the
+// `capabilities` subcommand. The k8s and eksClient fields are stub instances
+// so that ResourceSyncers can enumerate every resource type without making
+// network calls. The custom syncer overrides for Role and ClusterRole match
+// New() so the emitted resource type ids stay consistent (Role is renamed to
+// namespace_role to avoid colliding with the EKS IAMRole id "role").
+func NewDefault(ctx context.Context) *Connector {
+	syncResources := []string{
+		k8s.ResourceTypeConfigMap.Id,
+		k8s.ResourceTypeClusterRole.Id,
+		k8s.ResourceTypeNamespace.Id,
+		k8s.ResourceTypeRole.Id,
+		k8s.ResourceTypeServiceAccount.Id,
+	}
+	syncersMap := map[string]k8s.ResourceSyncerBuilder{
+		k8s.ResourceTypeClusterRole.Id: func(_ *kubernetes.Interface, kb *k8s.Kubernetes) connectorbuilder.ResourceSyncer {
+			return NewClusterRoleBuilder(nil, kb, nil)
+		},
+		k8s.ResourceTypeRole.Id: func(_ *kubernetes.Interface, kb *k8s.Kubernetes) connectorbuilder.ResourceSyncer {
+			return NewRoleBuilder(nil, kb, nil)
+		},
+	}
+	cb, err := k8s.New(ctx, &rest.Config{}, k8s.WithSyncResources(syncResources), k8s.WithCustomSyncers(syncersMap))
+	if err != nil {
+		cb = nil
+	}
+	return &Connector{
+		k8s:                 cb,
+		_onceCallingConfig:  map[string]*sync.Once{},
+		_callingConfig:      map[string]awsSdk.Config{},
+		_callingConfigError: map[string]error{},
+	}
 }
 
 // New returns a new instance of the connector.
