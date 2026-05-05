@@ -116,7 +116,7 @@ func handleRoleBinding(
 		}
 		if bindingToUpdate != nil {
 			bindingToUpdate.Subjects = append(bindingToUpdate.Subjects, rbacv1.Subject{
-				Kind:     "User",
+				Kind:     subjectKindUser,
 				Name:     username,
 				APIGroup: rbacv1.GroupName,
 			})

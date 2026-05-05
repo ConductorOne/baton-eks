@@ -4,10 +4,12 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 )
 
+const resourceTypeIDIAMRole = "role"
+
 // EKS-specific resource types.
 var (
 	ResourceTypeIAMRole = &v2.ResourceType{
-		Id:          "role",
+		Id:          resourceTypeIDIAMRole,
 		DisplayName: "IAM Role",
 		Description: "AWS IAM Role",
 		Traits:      []v2.ResourceType_Trait{v2.ResourceType_TRAIT_ROLE},
