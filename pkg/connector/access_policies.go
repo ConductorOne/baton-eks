@@ -23,6 +23,8 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 )
 
+const eksAccessPolicyARNPrefix = "arn:aws:eks::aws:cluster-access-policy/"
+
 // accessPolicyBuilder syncs EKS Access Policies as Baton resources.
 type accessPolicyBuilder struct {
 	eksClient    client.AccessPolicyClient
@@ -219,7 +221,7 @@ func (a *accessPolicyBuilder) createGrantsForPrincipal(resource *v2.Resource, pr
 	var resourceType string
 	if strings.Contains(principalARN, ":role/") {
 		principalResource = k8s.GenerateResourceForGrant(principalARN, ResourceTypeIAMRole.Id)
-		resourceType = "role"
+		resourceType = ResourceTypeIAMRole.Id
 	} else {
 		principalResource = k8s.GenerateResourceForGrant(principalARN, ResourceTypeIAMUser.Id)
 		resourceType = "user"
@@ -260,7 +262,7 @@ func (a *accessPolicyBuilder) createGrant(
 	grantOpts := []grant.GrantOption{}
 
 	// Add expandable options for roles
-	if resourceType == "role" {
+	if resourceType == ResourceTypeIAMRole.Id {
 		grantExpandable := &v2.GrantExpandable{
 			EntitlementIds: []string{
 				fmt.Sprintf("role:%s:assignment", principalARN),
@@ -449,31 +451,31 @@ func (a *accessPolicyBuilder) getStandardPolicies() []*client.AccessPolicy {
 	// The following list is limited to policies that are related (assignable) to users/roles.
 	return []*client.AccessPolicy{
 		{
-			PolicyARN:   "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy",
+			PolicyARN:   eksAccessPolicyARNPrefix + "AmazonEKSClusterAdminPolicy",
 			DisplayName: "AmazonEKSClusterAdminPolicy",
 			Description: "This access policy includes permissions that grant an IAM principal administrator access to a cluster. " +
 				"When associated to an access entry, its access scope is typically the cluster, rather than a Kubernetes namespace. " +
 				"If you want an IAM principal to have a more limited administrative scope, consider associating the AmazonEKSAdminPolicy access policy to your access entry instead.",
 		},
 		{
-			PolicyARN:   "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy",
+			PolicyARN:   eksAccessPolicyARNPrefix + "AmazonEKSAdminPolicy",
 			DisplayName: "AmazonEKSAdminPolicy",
 			Description: "This access policy includes permissions that grant an IAM principal most permissions to resources. " +
 				"When associated to an access entry, its access scope is typically one or more Kubernetes namespaces. " +
 				"If you want an IAM principal to have administrator access to all resources on your cluster, associate the AmazonEKSClusterAdminPolicy access policy to your access entry instead.",
 		},
 		{
-			PolicyARN:   "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy",
+			PolicyARN:   eksAccessPolicyARNPrefix + "AmazonEKSViewPolicy",
 			DisplayName: "AmazonEKSViewPolicy",
 			Description: "This access policy includes permissions that allow an IAM principal to view most Kubernetes resources.",
 		},
 		{
-			PolicyARN:   "arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy",
+			PolicyARN:   eksAccessPolicyARNPrefix + "AmazonEKSEditPolicy",
 			DisplayName: "AmazonEKSEditPolicy",
 			Description: "This access policy includes permissions that allow an IAM principal to edit most Kubernetes resources.",
 		},
 		{
-			PolicyARN:   "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminViewPolicy",
+			PolicyARN:   eksAccessPolicyARNPrefix + "AmazonEKSAdminViewPolicy",
 			DisplayName: "AmazonEKSAdminViewPolicy",
 			Description: "This access policy includes permissions that grant an IAM principal access to list/view all resources in a cluster. Note this includes Kubernetes Secrets.",
 		},

@@ -92,5 +92,9 @@ var (
 var Config = field.NewConfiguration(
 	ConfigurationFields,
 	field.WithConstraints(FieldRelationships...),
-	field.WithConnectorDisplayName("EKS"),
+	field.WithConnectorDisplayName("Amazon EKS"),
+	field.WithIconUrl("/static/app-icons/eks.svg"),
+	field.WithHelpUrl("/docs/baton/eks"),
+	field.WithRequiresExternalConnector(true),
+	field.WithSupportsExternalResources(true),
 )

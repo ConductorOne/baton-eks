@@ -83,7 +83,7 @@ func (c *clusterRoleBuilder) handleClusterRoleBinding(ctx context.Context, entit
 		}
 		if bindingToUpdate != nil {
 			bindingToUpdate.Subjects = append(bindingToUpdate.Subjects, rbacv1.Subject{
-				Kind:     "User",
+				Kind:     subjectKindUser,
 				Name:     username,
 				APIGroup: rbacv1.GroupName,
 			})

@@ -1,21 +1,101 @@
 {
-  "@type":  "type.googleapis.com/c1.connector.v2.ConnectorCapabilities",
-  "resourceTypeCapabilities":  [
+  "@type": "type.googleapis.com/c1.connector.v2.ConnectorCapabilities",
+  "resourceTypeCapabilities": [
     {
-      "resourceType":  {
-        "id":  "user",
-        "displayName":  "User",
-        "traits":  [
+      "resourceType": {
+        "id": "access_policy",
+        "displayName": "Access Policy",
+        "traits": [
+          "TRAIT_ROLE"
+        ],
+        "description": "EKS Access Policy"
+      },
+      "capabilities": [
+        "CAPABILITY_SYNC",
+        "CAPABILITY_PROVISION"
+      ],
+      "permissions": {}
+    },
+    {
+      "resourceType": {
+        "id": "cluster_role",
+        "displayName": "Cluster Role",
+        "traits": [
+          "TRAIT_ROLE"
+        ]
+      },
+      "capabilities": [
+        "CAPABILITY_SYNC",
+        "CAPABILITY_PROVISION"
+      ],
+      "permissions": {}
+    },
+    {
+      "resourceType": {
+        "id": "configmap",
+        "displayName": "Config Map"
+      },
+      "capabilities": [
+        "CAPABILITY_SYNC"
+      ],
+      "permissions": {}
+    },
+    {
+      "resourceType": {
+        "id": "namespace",
+        "displayName": "Namespace"
+      },
+      "capabilities": [
+        "CAPABILITY_SYNC"
+      ],
+      "permissions": {}
+    },
+    {
+      "resourceType": {
+        "id": "namespace_role",
+        "displayName": "Namespace Role",
+        "traits": [
+          "TRAIT_ROLE"
+        ],
+        "description": "Kubernetes Namespace Role"
+      },
+      "capabilities": [
+        "CAPABILITY_SYNC",
+        "CAPABILITY_PROVISION"
+      ],
+      "permissions": {}
+    },
+    {
+      "resourceType": {
+        "id": "role",
+        "displayName": "IAM Role",
+        "traits": [
+          "TRAIT_ROLE"
+        ],
+        "description": "AWS IAM Role"
+      },
+      "capabilities": [
+        "CAPABILITY_SYNC"
+      ],
+      "permissions": {}
+    },
+    {
+      "resourceType": {
+        "id": "service_account",
+        "displayName": "Service Account",
+        "traits": [
           "TRAIT_USER"
         ]
       },
-      "capabilities":  [
+      "capabilities": [
         "CAPABILITY_SYNC"
-      ]
+      ],
+      "permissions": {}
     }
   ],
-  "connectorCapabilities":  [
+  "connectorCapabilities": [
+    "CAPABILITY_PROVISION",
     "CAPABILITY_SYNC"
   ],
-  "credentialDetails":  {}
+  "credentialDetails": {}
 }
