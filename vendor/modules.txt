@@ -325,7 +325,7 @@ github.com/cockroachdb/tokenbucket
 # github.com/conductorone/baton-kubernetes v0.0.6
 ## explicit; go 1.25.2
 github.com/conductorone/baton-kubernetes/pkg/connector
-# github.com/conductorone/baton-sdk v0.12.6
+# github.com/conductorone/baton-sdk v0.13.0
 ## explicit; go 1.25.2
 github.com/conductorone/baton-sdk/internal/connector
 github.com/conductorone/baton-sdk/pb/c1/c1z/v1
@@ -352,6 +352,7 @@ github.com/conductorone/baton-sdk/pkg/crypto
 github.com/conductorone/baton-sdk/pkg/crypto/providers
 github.com/conductorone/baton-sdk/pkg/crypto/providers/jwk
 github.com/conductorone/baton-sdk/pkg/dotc1z
+github.com/conductorone/baton-sdk/pkg/dotc1z/c1zstore
 github.com/conductorone/baton-sdk/pkg/dotc1z/engine/pebble
 github.com/conductorone/baton-sdk/pkg/dotc1z/engine/pebble/codec
 github.com/conductorone/baton-sdk/pkg/dotc1z/format/v3
