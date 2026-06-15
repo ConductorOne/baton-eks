@@ -15,6 +15,7 @@ var (
 		"global-access-key-id",
 		field.WithDisplayName("Global Access Key"),
 		field.WithDescription("The global-access-key-id for the aws account"),
+		field.WithIsSecret(true),
 	)
 	GlobalBindingExternalIdField = field.StringField(
 		"global-binding-external-id",
@@ -35,6 +36,7 @@ var (
 		"global-secret-access-key",
 		field.WithDisplayName("Global Secret Access Key"),
 		field.WithDescription("The global-secret-access-key for the aws account"),
+		field.WithIsSecret(true),
 	)
 	RoleArnField = field.StringField(
 		"role-arn",
