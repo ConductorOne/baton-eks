@@ -102,6 +102,7 @@
       "name": "global-access-key-id",
       "displayName": "Global Access Key",
       "description": "The global-access-key-id for the aws account",
+      "isSecret": true,
       "stringField": {}
     },
     {
@@ -126,6 +127,7 @@
       "name": "global-secret-access-key",
       "displayName": "Global Secret Access Key",
       "description": "The global-secret-access-key for the aws account",
+      "isSecret": true,
       "stringField": {}
     },
     {
