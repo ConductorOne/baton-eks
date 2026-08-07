@@ -115,7 +115,8 @@ func clusterRoleResource(clusterRole *rbacv1.ClusterRole) (*v2.Resource, error) 
 		clusterRole.Name,
 		k8s.ResourceTypeClusterRole,
 		clusterRole.Name, // Pass the name directly as the object ID.
-		[]rs.RoleTraitOption{rs.WithRoleProfile(profile)},
+		[]rs.RoleTraitOption{},
+		rs.WithResourceProfile(profile),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cluster role resource: %w", err)

@@ -116,7 +116,8 @@ func roleResource(role *rbacv1.Role) (*v2.Resource, error) {
 		role.Name,
 		ResourceTypeNamespaceRole,
 		rawID, // Pass the raw ID directly
-		[]rs.RoleTraitOption{rs.WithRoleProfile(profile)},
+		[]rs.RoleTraitOption{},
+		rs.WithResourceProfile(profile),
 		rs.WithParentResourceID(parentID),
 	)
 	if err != nil {
