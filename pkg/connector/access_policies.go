@@ -75,7 +75,8 @@ func (a *accessPolicyBuilder) policyResource(policy *client.AccessPolicy) (*v2.R
 		policy.DisplayName,
 		ResourceTypeAccessPolicy,
 		policy.PolicyARN, // Pass the policy ARN directly as the object ID
-		[]rs.RoleTraitOption{rs.WithRoleProfile(profile)},
+		[]rs.RoleTraitOption{},
+		rs.WithResourceProfile(profile),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create policy resource: %w", err)

@@ -97,7 +97,8 @@ func (i *iamRoleBuilder) roleResource(role *client.IAMRole) (*v2.Resource, error
 		role.RoleName,
 		ResourceTypeIAMRole,
 		role.ARN, // Use ARN as the resource ID
-		[]rs.RoleTraitOption{rs.WithRoleProfile(profile)},
+		[]rs.RoleTraitOption{},
+		rs.WithResourceProfile(profile),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create role resource: %w", err)
