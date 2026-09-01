@@ -74,10 +74,10 @@ Available Commands:
 Flags:
       --client-id string             The client ID used to authenticate with ConductorOne ($BATON_CLIENT_ID)
       --client-secret string         The client secret used to authenticate with ConductorOne ($BATON_CLIENT_SECRET)
-      --eks-acces-key string         The access key of the user ($BATON_EKS_ACCESS_KEY)
+      --eks-access-key string        The access key of the user ($BATON_EKS_ACCESS_KEY)
       --eks-secret-access-key string The secret access key of the user ($BATON_EKS_SECRET_ACCESS_KEY)
       --eks-region string            The AWS account region ($BATON_EKS_REGION)
-      --eks-assume-role-arn string   The arn of the IAM role to assume ($BATON_EKS_ASSUME_ROLE_ARN)
+      --role-arn string              The ARN of the IAM role to assume ($BATON_ROLE_ARN)
       --eks-cluster-name string      The name of the cluster to sync ($BATON_EKS_CLUSTER_NAME)
   -f, --file string                  The path to the c1z file to sync with ($BATON_FILE) (default "sync.c1z")
   -h, --help                         help for baton-eks
