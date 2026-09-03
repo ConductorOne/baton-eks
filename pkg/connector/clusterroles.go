@@ -66,7 +66,7 @@ func (c *clusterRoleBuilder) List(ctx context.Context, parentResourceID *v2.Reso
 	l.Debug("fetching cluster roles", zap.String("continue_token", opts.Continue))
 	resp, err := c.client.RbacV1().ClusterRoles().List(ctx, opts)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("failed to list cluster roles: %w", err)
+		return nil, "", nil, wrapK8sAuthError(err, "failed to list cluster roles")
 	}
 
 	// Process each cluster role into a Baton resource.
@@ -287,7 +287,7 @@ func (c *clusterRoleBuilder) cacheNamespaces(ctx context.Context) error {
 		}
 		nsList, err := c.client.CoreV1().Namespaces().List(ctx, opts)
 		if err != nil {
-			return fmt.Errorf("failed to cache namespaces list: %w", err)
+			return wrapK8sAuthError(err, "failed to list namespaces")
 		}
 		for _, ns := range nsList.Items {
 			names = append(names, ns.Name)
