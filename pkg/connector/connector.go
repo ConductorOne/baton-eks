@@ -26,6 +26,34 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// AWSConfigLoader resolves the AWS SDK configuration used by the connector.
+type AWSConfigLoader func(context.Context, ...func(*awsConfig.LoadOptions) error) (awsSdk.Config, error)
+
+// STSClientFactory constructs an STS client for an assumed-role credential provider.
+type STSClientFactory func(awsSdk.Config) stscreds.AssumeRoleAPIClient
+
+type options struct {
+	loadAWSConfig AWSConfigLoader
+	newSTSClient  STSClientFactory
+}
+
+// Option configures the EKS connector.
+type Option func(*options)
+
+// WithAWSConfigLoader replaces the default AWS SDK configuration loader.
+func WithAWSConfigLoader(loader AWSConfigLoader) Option {
+	return func(o *options) {
+		o.loadAWSConfig = loader
+	}
+}
+
+// WithSTSClientFactory replaces the STS client constructor used for role assumptions.
+func WithSTSClientFactory(factory STSClientFactory) Option {
+	return func(o *options) {
+		o.newSTSClient = factory
+	}
+}
+
 type Connector struct {
 	k8s                 *k8s.Kubernetes
 	eksClient           *client.EKSClient
@@ -35,6 +63,8 @@ type Connector struct {
 	config              *config.Eks
 	awsConfig           awsSdk.Config
 	baseClient          *http.Client
+	loadAWSConfig       AWSConfigLoader
+	newSTSClient        STSClientFactory
 }
 
 // ResourceSyncers returns a ResourceSyncer for each resource type that should be synced from the upstream service.
@@ -73,21 +103,37 @@ func (d *Connector) Validate(ctx context.Context) (annotations.Annotations, erro
 func New(
 	ctx context.Context,
 	cfg *config.Eks,
+	optFns ...Option,
 ) (*Connector, error) {
+	opts := options{
+		loadAWSConfig: awsConfig.LoadDefaultConfig,
+		newSTSClient: func(cfg awsSdk.Config) stscreds.AssumeRoleAPIClient {
+			return sts.NewFromConfig(cfg)
+		},
+	}
+	for _, fn := range optFns {
+		if fn != nil {
+			fn(&opts)
+		}
+	}
+	if opts.loadAWSConfig == nil || opts.newSTSClient == nil {
+		return nil, fmt.Errorf("eks connector: AWS config loader and STS client factory are required")
+	}
+
 	l := ctxzap.Extract(ctx)
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
 		return nil, err
 	}
 
-	opts := GetAwsConfigOptions(httpClient, cfg)
-	baseConfig, err := awsConfig.LoadDefaultConfig(ctx, opts...)
+	awsOpts := GetAwsConfigOptions(httpClient, cfg)
+	baseConfig, err := opts.loadAWSConfig(ctx, awsOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("eks connector: config load failure: %w", err)
 	}
 
 	if cfg.ExternalId == "" && cfg.EksAccessKey != "" && cfg.EksSecretAccessKey != "" {
-		baseConfig, err = getOnPremAWSConfig(ctx, cfg, httpClient)
+		baseConfig, err = getOnPremAWSConfig(ctx, cfg, httpClient, opts.newSTSClient)
 		if err != nil {
 			return nil, fmt.Errorf("eks connector: config load failure: %w", err)
 		}
@@ -97,6 +143,8 @@ func New(
 		awsConfig:           baseConfig.Copy(),
 		baseClient:          httpClient,
 		config:              cfg,
+		loadAWSConfig:       opts.loadAWSConfig,
+		newSTSClient:        opts.newSTSClient,
 		_onceCallingConfig:  map[string]*sync.Once{},
 		_callingConfig:      map[string]awsSdk.Config{},
 		_callingConfigError: map[string]error{},
@@ -198,7 +246,7 @@ func (o *Connector) getCallingConfig(ctx context.Context, region string) (awsSdk
 			l := ctxzap.Extract(ctx)
 			// ok, if we are an instance, we do the assumeRole twice, first time from our Instance role, INTO the binding account
 			// and from there, into the customer account.
-			stsSvc := sts.NewFromConfig(o.awsConfig)
+			stsSvc := o.newSTSClient(o.awsConfig)
 			bindingCreds := awsSdk.NewCredentialsCache(stscreds.NewAssumeRoleProvider(stsSvc, o.config.GlobalRoleArn, func(aro *stscreds.AssumeRoleOptions) {
 				if o.config.GlobalBindingExternalId != "" {
 					aro.ExternalID = awsSdk.String(o.config.GlobalBindingExternalId)
@@ -220,7 +268,7 @@ func (o *Connector) getCallingConfig(ctx context.Context, region string) (awsSdk
 			stsConfig := o.awsConfig.Copy()
 			stsConfig.Credentials = bindingCreds
 
-			callingSTSService := sts.NewFromConfig(stsConfig)
+			callingSTSService := o.newSTSClient(stsConfig)
 
 			callingConfig := awsSdk.Config{
 				HTTPClient:   o.baseClient,
@@ -253,7 +301,7 @@ func (c *Connector) SetupClients(ctx context.Context) (*iam.Client, *eks.Client,
 	return iamClient, eksClient, nil
 }
 
-func getOnPremAWSConfig(ctx context.Context, cfg *config.Eks, httpClient *http.Client) (awsSdk.Config, error) {
+func getOnPremAWSConfig(ctx context.Context, cfg *config.Eks, httpClient *http.Client, newSTSClient STSClientFactory) (awsSdk.Config, error) {
 	creds := awsSdk.NewCredentialsCache(
 		credentials.NewStaticCredentialsProvider(cfg.EksAccessKey, cfg.EksSecretAccessKey, ""),
 	)
@@ -265,7 +313,7 @@ func getOnPremAWSConfig(ctx context.Context, cfg *config.Eks, httpClient *http.C
 	}
 
 	// Step 2: Use STS to assume role
-	stsClient := sts.NewFromConfig(baseCfg)
+	stsClient := newSTSClient(baseCfg)
 	assumedCreds := stscreds.NewAssumeRoleProvider(stsClient, cfg.RoleArn)
 
 	roleCfg := awsSdk.Config{
