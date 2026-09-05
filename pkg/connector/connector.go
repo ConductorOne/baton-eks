@@ -63,7 +63,6 @@ type Connector struct {
 	config              *config.Eks
 	awsConfig           awsSdk.Config
 	baseClient          *http.Client
-	loadAWSConfig       AWSConfigLoader
 	newSTSClient        STSClientFactory
 }
 
@@ -143,7 +142,6 @@ func New(
 		awsConfig:           baseConfig.Copy(),
 		baseClient:          httpClient,
 		config:              cfg,
-		loadAWSConfig:       opts.loadAWSConfig,
 		newSTSClient:        opts.newSTSClient,
 		_onceCallingConfig:  map[string]*sync.Once{},
 		_callingConfig:      map[string]awsSdk.Config{},
