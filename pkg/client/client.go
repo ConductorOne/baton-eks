@@ -578,6 +578,11 @@ func (c *EKSClient) DeleteRoleBinding(ctx context.Context, namespace, bindingNam
 	return nil
 }
 
+func (c *EKSClient) CheckClusterAccess(ctx context.Context) error {
+	_, err := c.kubernetes.Discovery().ServerVersion()
+	return err
+}
+
 func (c *EKSClient) ListNamespaces(ctx context.Context, opts metav1.ListOptions) (*corev1.NamespaceList, error) {
 	namespaces, err := c.kubernetes.CoreV1().Namespaces().List(ctx, opts)
 	if err != nil {
