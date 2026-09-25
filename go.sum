@@ -92,8 +92,8 @@ github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 h1:zuQyyAK
 github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06/go.mod h1:7nc4anLGjupUW/PeY5qiNYsdNXj7zopG+eqsS7To5IQ=
 github.com/conductorone/baton-kubernetes v0.0.6 h1:wYwClVA6urC5Z/OhpPZN5Cj2CtyKiWVTWQPt4QLzg/E=
 github.com/conductorone/baton-kubernetes v0.0.6/go.mod h1:F9Akxnl7U3NR+2wCdIIGfSHTb8/MPSGZxGMdvF9Ji+o=
-github.com/conductorone/baton-sdk v0.32.1 h1:SK25ifrxqUxTR1gELCJVJKyBJr4uQs/wsuBX+5wJFmM=
-github.com/conductorone/baton-sdk v0.32.1/go.mod h1:3MqQvULy+uu0/gEn6uPlMAOH70BthOkU2VkV2NUcjjc=
+github.com/conductorone/baton-sdk v0.32.2 h1:QJjIV40pYxdUBuzjpT7G91A/I6yYga1AEwkCEpIACzk=
+github.com/conductorone/baton-sdk v0.32.2/go.mod h1:3MqQvULy+uu0/gEn6uPlMAOH70BthOkU2VkV2NUcjjc=
 github.com/conductorone/dpop v0.3.0 h1:j5fZk0VqepGKYo+/NDikCOMsZcgs4HO4i0k56wRel5g=
 github.com/conductorone/dpop v0.3.0/go.mod h1:gyo8TtzB9SCFCsjsICH4IaLZ7y64CcrDXMOPBwfq/3s=
 github.com/conductorone/dpop/integrations/dpop_grpc v0.3.0 h1:R2uxHBtStgUn7cxbAnT3mAj6/e1akfP2Pj/hEPFB0D8=
