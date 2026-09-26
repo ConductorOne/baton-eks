@@ -8,10 +8,8 @@ import (
 	"time"
 
 	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
-	awsV1 "github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"sigs.k8s.io/aws-iam-authenticator/pkg/token"
 )
 
@@ -58,7 +56,7 @@ func GenerateEKSToken(clusterID string, region string, assumeRoleARN string) (st
 		AssumeRoleARN: assumeRoleARN,
 	}
 
-	tk, err := gen.GetWithOptions(opts)
+	tk, err := gen.GetWithOptions(context.Background(), opts)
 	if err != nil {
 		return "", fmt.Errorf("failed to get EKS token: %w", err)
 	}
@@ -74,21 +72,18 @@ func GenerateEKSTokenWithCredentials(ctx context.Context, clusterID string, regi
 		return "", fmt.Errorf("failed to retrieve credentials: %w", err)
 	}
 
-	// Create AWS v1 session with the credentials
-	sess, err := session.NewSession(&awsV1.Config{
-		Region: awsV1.String(region),
-		Credentials: credentials.NewStaticCredentials(
+	// Derive from awsConfig so env/shared-config endpoint settings (FIPS,
+	// dual-stack) still apply to the presigned STS host. BaseEndpoint
+	// (AWS_ENDPOINT_URL) is cleared: EKS only accepts tokens for real STS hosts.
+	stsClient := sts.NewFromConfig(awsConfig, func(o *sts.Options) {
+		o.Region = region
+		o.BaseEndpoint = nil
+		o.Credentials = credentials.NewStaticCredentialsProvider(
 			creds.AccessKeyID,
 			creds.SecretAccessKey,
 			creds.SessionToken,
-		),
+		)
 	})
-	if err != nil {
-		return "", fmt.Errorf("failed to create AWS session: %w", err)
-	}
-
-	// Create v1 STS client
-	stsClient := sts.New(sess)
 
 	// Create the token generator
 	gen, err := token.NewGenerator(false, false)
@@ -96,7 +91,6 @@ func GenerateEKSTokenWithCredentials(ctx context.Context, clusterID string, regi
 		return "", fmt.Errorf("failed to create EKS token generator: %w", err)
 	}
 
-	// Generate token using the v1 STS client
 	tk, err := gen.GetWithSTS(clusterID, stsClient)
 	if err != nil {
 		return "", fmt.Errorf("failed to get EKS token: %w", err)
