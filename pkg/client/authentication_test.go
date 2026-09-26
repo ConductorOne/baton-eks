@@ -47,6 +47,7 @@ func TestGenerateEKSTokenWithCredentials(t *testing.T) {
 			t.Setenv("AWS_SHARED_CREDENTIALS_FILE", missing)
 			t.Setenv("AWS_PROFILE", "")
 			t.Setenv("AWS_USE_FIPS_ENDPOINT", "")
+			t.Setenv("AWS_USE_DUALSTACK_ENDPOINT", "")
 			t.Setenv("AWS_ENDPOINT_URL", "")
 			t.Setenv("AWS_ENDPOINT_URL_STS", "")
 			for k, v := range tt.env {
