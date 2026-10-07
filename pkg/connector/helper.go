@@ -18,6 +18,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
 )
 
@@ -140,6 +141,22 @@ func validatePEMCertificate(caData []byte) error {
 		return fmt.Errorf("CA data is not a valid certificate: %w", err)
 	}
 	return nil
+}
+
+func wrapK8sAuthError(err error, operation string) error {
+	if apierrors.IsUnauthorized(err) || apierrors.IsForbidden(err) {
+		return fmt.Errorf(
+			"%s: %w. "+
+				"The connector's IAM identity is not authorized to access the Kubernetes API. "+
+				"Ensure the IAM role ARN is added to the aws-auth ConfigMap (mapRoles section in kube-system/aws-auth) "+
+				"or configured as an EKS Access Entry. "+
+				"Note: IRSA and IAM permissions alone grant AWS API access but do not authorize Kubernetes API calls — "+
+				"an explicit identity mapping is required. "+
+				"See https://docs.aws.amazon.com/eks/latest/userguide/auth-configmap.html",
+			operation, err,
+		)
+	}
+	return fmt.Errorf("%s: %w", operation, err)
 }
 
 func getNamespaceFromEntitlementID(entitlementID string) (string, error) {

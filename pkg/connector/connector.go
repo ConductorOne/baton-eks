@@ -23,6 +23,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -68,7 +69,51 @@ func (d *Connector) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error)
 // Validate is called to ensure that the connector is properly configured. It should exercise any API credentials
 // to be sure that they are valid.
 func (d *Connector) Validate(ctx context.Context) (annotations.Annotations, error) {
-	return nil, nil
+	if d.eksClient == nil {
+		return nil, nil
+	}
+
+	l := ctxzap.Extract(ctx)
+
+	err := d.eksClient.CheckClusterAccess(ctx)
+	if err == nil {
+		return nil, nil
+	}
+
+	clusterName := ""
+	region := ""
+	roleArn := ""
+	if d.config != nil {
+		clusterName = d.config.EksClusterName
+		region = d.config.EksRegion
+		roleArn = d.config.RoleArn
+	}
+
+	if apierrors.IsUnauthorized(err) || apierrors.IsForbidden(err) {
+		l.Error("Kubernetes API authentication failed — the connector's IAM identity is not mapped to a Kubernetes identity",
+			zap.String("cluster_name", clusterName),
+			zap.String("region", region),
+			zap.String("role_arn", roleArn),
+			zap.Error(err),
+		)
+		return nil, fmt.Errorf(
+			"kubernetes API authentication failed for cluster %q: %w. "+
+				"The connector's IAM role (%s) is not authorized to access the Kubernetes API. "+
+				"Add the role ARN to the aws-auth ConfigMap (mapRoles section in kube-system/aws-auth) "+
+				"or create an EKS Access Entry for this role. "+
+				"Note: IRSA and IAM permissions alone grant AWS API access but do not authorize "+
+				"Kubernetes API calls — an explicit identity mapping is required. "+
+				"See https://docs.aws.amazon.com/eks/latest/userguide/auth-configmap.html",
+			clusterName, err, roleArn,
+		)
+	}
+
+	l.Error("Kubernetes API access check failed",
+		zap.String("cluster_name", clusterName),
+		zap.String("region", region),
+		zap.Error(err),
+	)
+	return nil, fmt.Errorf("kubernetes API access check failed for cluster %q: %w", clusterName, err)
 }
 
 // NewDefault returns a credential-free instance of the connector used by the
