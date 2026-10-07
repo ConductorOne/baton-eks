@@ -287,7 +287,7 @@ github.com/cockroachdb/tokenbucket
 # github.com/conductorone/baton-kubernetes v0.0.6
 ## explicit; go 1.25.2
 github.com/conductorone/baton-kubernetes/pkg/connector
-# github.com/conductorone/baton-sdk v0.36.0
+# github.com/conductorone/baton-sdk v0.40.0
 ## explicit; go 1.27.1
 github.com/conductorone/baton-sdk/internal/atomicfile
 github.com/conductorone/baton-sdk/internal/connector
