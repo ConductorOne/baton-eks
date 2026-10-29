@@ -59,7 +59,7 @@ func (r *roleBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId,
 	l.Debug("fetching roles", zap.String("continue_token", opts.Continue))
 	resp, err := r.client.RbacV1().Roles("").List(ctx, opts)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("failed to list roles: %w", err)
+		return nil, "", nil, wrapK8sAuthError(err, "failed to list roles")
 	}
 
 	// Process each role into a Baton resource
