@@ -40,13 +40,15 @@ baton resources
 # Data Model
 
 `baton-eks` will pull down information about the following resources:
-- Users
-- Groups
-- Roles
+- Service accounts
+- IAM roles
 - Cluster roles
+- Namespace roles
 - Namespaces
+- Config maps
+- Access policies
 
-`baton-eks` does not specify supporting account provisioning or entitlement provisioning.
+`baton-eks` supports entitlement provisioning for cluster roles, namespace roles, and access policies. It does not support account provisioning.
 
 # Contributing, Support and Issues
 
